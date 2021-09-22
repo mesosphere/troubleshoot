@@ -50,6 +50,7 @@ require (
 	k8s.io/apiserver v0.22.2
 	k8s.io/cli-runtime v0.20.2
 	k8s.io/client-go v0.20.2
+	k8s.io/utils v0.0.0-20210820185131-d34e5cb4466e
 	sigs.k8s.io/controller-runtime v0.8.3
 )
 
