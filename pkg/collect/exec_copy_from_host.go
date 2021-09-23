@@ -80,9 +80,6 @@ func ExecCopyFromHost(
 	}
 
 	childCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	timeoutCtx := context.Background()
 	if collector.Timeout != "" {
 		timeout, err := time.ParseDuration(collector.Timeout)
 		if err != nil {
@@ -91,9 +88,9 @@ func ExecCopyFromHost(
 
 		if timeout > 0 {
 			childCtx, cancel = context.WithTimeout(childCtx, timeout)
-			defer cancel()
 		}
 	}
+	defer cancel()
 
 	errCh := make(chan error, 1)
 	resultCh := make(chan map[string][]byte, 1)
@@ -116,7 +113,7 @@ func ExecCopyFromHost(
 	}()
 
 	select {
-	case <-timeoutCtx.Done():
+	case <-childCtx.Done():
 		return nil, errors.New("timeout")
 	case result := <-resultCh:
 		return result, nil
