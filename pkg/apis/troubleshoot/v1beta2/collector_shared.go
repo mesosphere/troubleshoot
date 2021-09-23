@@ -114,6 +114,36 @@ type CopyFromHost struct {
 	ExtractArchive  bool              `json:"extractArchive,omitempty" yaml:"extractArchive,omitempty"`
 }
 
+type ExecCopyFromHost struct {
+	CollectorMeta `json:",inline" yaml:",inline"`
+	Name          string `json:"name,omitempty" yaml:"name,omitempty"`
+	// Selector        []string          `json:"selector" yaml:"selector"`
+	Namespace       string            `json:"namespace" yaml:"namespace"`
+	Image           string            `json:"image" yaml:"image"`
+	ImagePullPolicy string            `json:"imagePullPolicy,omitempty" yaml:"imagePullPolicy,omitempty"`
+	ImagePullSecret *ImagePullSecrets `json:"imagePullSecret,omitempty" yaml:"imagePullSecret,omitempty"`
+	// The name of the pause image that will be executed after the collector
+	// image has completed. This container needs to include `tar` command in order
+	// to be able to send data back to troubleshoot process.
+	PauseImage string   `json:"pauseImage" yaml:"pauseImage"`
+	Timeout    string   `json:"timeout,omitempty" yaml:"timeout,omitempty"`
+	Command    []string `json:"command,omitempty" yaml:"command,omitempty"`
+	Args       []string `json:"args,omitempty" yaml:"args,omitempty"`
+	WorkingDir string   `json:"workingDir,omitempty" yaml:"workingDir,omitempty"`
+	// Setting this setting to true will run containers on control plane nodes as
+	// well.
+	IncludeControlPlane bool `json:"includeControlPlane,omitempty" yaml:"includeControlPlane,omitempty"`
+	// A timeout that is applied for a waiting for daemonset to be running.
+	// Default: 30s
+	DaemonSetTimeout string   `json:"daemonSetTimeout,omitempty" yaml:"daemonSetTimeout,omitempty"`
+	Privileged       bool     `json:"privileged,omitempty" yaml:"privileged,omitempty"`
+	Capabilities     []string `json:"capabilities,omitempty" yaml:"capabilities,omitempty"`
+	RunAsUser        int64    `json:"runAsUser,omitempty" yaml:"runAsUser,omitempty"`
+	RunAsNonRoot     bool     `json:"runAsNonRoot,omitempty" yaml:"runAsNonRoot,omitempty"`
+	// DataPath         string   `json:"dataPath" yaml:"dataPath"`
+	ExtractArchive bool `json:"extractArchive,omitempty" yaml:"extractArchive,omitempty"`
+}
+
 type HTTP struct {
 	CollectorMeta `json:",inline" yaml:",inline"`
 	Name          string `json:"name,omitempty" yaml:"name,omitempty"`
@@ -187,6 +217,7 @@ type Collect struct {
 	Data             *Data             `json:"data,omitempty" yaml:"data,omitempty"`
 	Copy             *Copy             `json:"copy,omitempty" yaml:"copy,omitempty"`
 	CopyFromHost     *CopyFromHost     `json:"copyFromHost,omitempty" yaml:"copyFromHost,omitempty"`
+	ExecCopyFromHost *ExecCopyFromHost `json:"execCopyFromHost,omitempty" yaml:"execCopyFromHost,omitempty"`
 	HTTP             *HTTP             `json:"http,omitempty" yaml:"http,omitempty"`
 	Postgres         *Database         `json:"postgres,omitempty" yaml:"postgres,omitempty"`
 	Mysql            *Database         `json:"mysql,omitempty" yaml:"mysql,omitempty"`
