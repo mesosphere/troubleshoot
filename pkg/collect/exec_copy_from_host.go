@@ -21,9 +21,10 @@ import (
 	"github.com/replicatedhq/troubleshoot/pkg/logger"
 )
 
-// Privileged host exec collector is a collector that executes a container with
-// elevated permissions on nodes in the cluster based on the provided selector
-// and copies the results produced by the container to the support bundle.
+// Exec and copy from host exec collector is a collector that executes a
+// container with configured linux permissions on nodes in the cluster based on
+// the provided selector and copies the results produced by the container to the
+// support bundle.
 
 // The k8s has no primitive for running a dameonset like job that would run once
 // on all nodes in the cluster. To overcome this issue this collector runs
@@ -39,38 +40,38 @@ import (
 // This collector is a combination of `CopyFromHost` and `Exec` containers.
 
 const (
-	// privilegedHostExecSharedVolumePath is a path to a directory that is
+	// execCopyFromHostSharedVolumePath is a path to a directory that is
 	// shared between the init container and pause container. The container that
 	// is producing data that should be copied to the diagnostics bundle should
 	// write data to this path.
-	privilegedHostExecSharedVolumePath = "/host/output"
+	execCopyFromHostSharedVolumePath = "/host/output"
 
-	// privilegedHostExecHostVolumePath is a path that is mounted to the container
+	// execCopyFromHostHostVolumePath is a path that is mounted to the container
 	// that is collecting data from the host node.
-	privilegedHostExecHostVolumePath = "/host"
+	execCopyFromHostHostVolumePath = "/host"
 
 	// defaultPauseImage is the name of the image that will be launched to transfer
 	// data collected by the collector container.
 	defaultPauseImage = "mesosphere/pause-alpine:3.2"
 )
 
-// PrivilegedHostExec is a function that executes arbitrary container on all
+// ExecCopyFromHost is a function that executes arbitrary container on all
 // nodes in the cluster and copies the data produced by the container.
-func PrivilegedHostExec(
+func ExecCopyFromHost(
 	ctx context.Context,
 	namespace string,
 	clientConfig *restclient.Config,
 	client kubernetes.Interface,
-	collector *troubleshootv1beta2.PrivilegedHostExec,
+	collector *troubleshootv1beta2.ExecCopyFromHost,
 ) (map[string][]byte, error) {
 	labels := map[string]string{
-		"app.kubernetes.io/managed-by":          "troubleshoot.sh",
-		"troubleshoot.sh/collector":             "privilegedhostexec",
-		"troubleshoot.sh/privilegedhostexec-id": ksuid.New().String(),
+		"app.kubernetes.io/managed-by":        "troubleshoot.sh",
+		"troubleshoot.sh/collector":           "execcopyfromhost",
+		"troubleshoot.sh/execcopyfromhost-id": ksuid.New().String(),
 	}
 
-	_, cleanup, err := privilegedHostExecCreateDaemonSet(
-		ctx, client, collector, namespace, "troubleshoot-privilegedexec-", labels,
+	_, cleanup, err := execCopyFromHostCreateDaemonSet(
+		ctx, client, collector, namespace, "troubleshoot-execcopyfromhost-", labels,
 	)
 	defer cleanup()
 	if err != nil {
@@ -100,9 +101,9 @@ func PrivilegedHostExec(
 		if collector.Name != "" {
 			outputPath = collector.Name
 		} else {
-			outputPath = labels["troubleshoot.sh/privilegedhostexec-id"]
+			outputPath = labels["troubleshoot.sh/execcopyfromhost-id"]
 		}
-		b, err := privilegedHostExecGetFilesFromPods(
+		b, err := execCopyFromHostGetFilesFromPods(
 			childCtx, clientConfig, client, collector,
 			outputPath, labels, namespace,
 		)
@@ -126,10 +127,10 @@ func PrivilegedHostExec(
 	}
 }
 
-func privilegedHostExecCreateDaemonSet(
+func execCopyFromHostCreateDaemonSet(
 	ctx context.Context,
 	client kubernetes.Interface,
-	collector *troubleshootv1beta2.PrivilegedHostExec,
+	collector *troubleshootv1beta2.ExecCopyFromHost,
 	namespace string,
 	generateName string,
 	labels map[string]string,
@@ -186,11 +187,11 @@ func privilegedHostExecCreateDaemonSet(
 							VolumeMounts: []corev1.VolumeMount{
 								{
 									Name:      "host",
-									MountPath: privilegedHostExecHostVolumePath,
+									MountPath: execCopyFromHostHostVolumePath,
 								},
 								{
 									Name:      "output",
-									MountPath: privilegedHostExecSharedVolumePath,
+									MountPath: execCopyFromHostSharedVolumePath,
 								},
 							},
 						},
@@ -312,11 +313,11 @@ func privilegedHostExecCreateDaemonSet(
 	return createdDS.Name, cleanup, nil
 }
 
-func privilegedHostExecGetFilesFromPods(
+func execCopyFromHostGetFilesFromPods(
 	ctx context.Context,
 	clientConfig *restclient.Config,
 	client kubernetes.Interface,
-	collector *troubleshootv1beta2.PrivilegedHostExec,
+	collector *troubleshootv1beta2.ExecCopyFromHost,
 	outputPath string,
 	labelSelector map[string]string,
 	namespace string,

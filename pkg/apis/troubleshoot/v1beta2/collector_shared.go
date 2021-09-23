@@ -114,7 +114,7 @@ type CopyFromHost struct {
 	ExtractArchive  bool              `json:"extractArchive,omitempty" yaml:"extractArchive,omitempty"`
 }
 
-type PrivilegedHostExec struct {
+type ExecCopyFromHost struct {
 	CollectorMeta `json:",inline" yaml:",inline"`
 	Name          string `json:"name,omitempty" yaml:"name,omitempty"`
 	// Selector        []string          `json:"selector" yaml:"selector"`
@@ -207,25 +207,25 @@ type RegistryImages struct {
 }
 
 type Collect struct {
-	ClusterInfo        *ClusterInfo        `json:"clusterInfo,omitempty" yaml:"clusterInfo,omitempty"`
-	ClusterResources   *ClusterResources   `json:"clusterResources,omitempty" yaml:"clusterResources,omitempty"`
-	Secret             *Secret             `json:"secret,omitempty" yaml:"secret,omitempty"`
-	ConfigMap          *ConfigMap          `json:"configMap,omitempty" yaml:"configMap,omitempty"`
-	Logs               *Logs               `json:"logs,omitempty" yaml:"logs,omitempty"`
-	Run                *Run                `json:"run,omitempty" yaml:"run,omitempty"`
-	Exec               *Exec               `json:"exec,omitempty" yaml:"exec,omitempty"`
-	Data               *Data               `json:"data,omitempty" yaml:"data,omitempty"`
-	Copy               *Copy               `json:"copy,omitempty" yaml:"copy,omitempty"`
-	CopyFromHost       *CopyFromHost       `json:"copyFromHost,omitempty" yaml:"copyFromHost,omitempty"`
-	PrivilegedHostExec *PrivilegedHostExec `json:"privilegedHostExec,omitempty" yaml:"privilegedHostExec,omitempty"`
-	HTTP               *HTTP               `json:"http,omitempty" yaml:"http,omitempty"`
-	Postgres           *Database           `json:"postgres,omitempty" yaml:"postgres,omitempty"`
-	Mysql              *Database           `json:"mysql,omitempty" yaml:"mysql,omitempty"`
-	Redis              *Database           `json:"redis,omitempty" yaml:"redis,omitempty"`
-	Collectd           *Collectd           `json:"collectd,omitempty" yaml:"collectd,omitempty"`
-	Ceph               *Ceph               `json:"ceph,omitempty" yaml:"ceph,omitempty"`
-	Longhorn           *Longhorn           `json:"longhorn,omitempty" yaml:"longhorn,omitempty"`
-	RegistryImages     *RegistryImages     `json:"registryImages,omitempty" yaml:"registryImages,omitempty"`
+	ClusterInfo      *ClusterInfo      `json:"clusterInfo,omitempty" yaml:"clusterInfo,omitempty"`
+	ClusterResources *ClusterResources `json:"clusterResources,omitempty" yaml:"clusterResources,omitempty"`
+	Secret           *Secret           `json:"secret,omitempty" yaml:"secret,omitempty"`
+	ConfigMap        *ConfigMap        `json:"configMap,omitempty" yaml:"configMap,omitempty"`
+	Logs             *Logs             `json:"logs,omitempty" yaml:"logs,omitempty"`
+	Run              *Run              `json:"run,omitempty" yaml:"run,omitempty"`
+	Exec             *Exec             `json:"exec,omitempty" yaml:"exec,omitempty"`
+	Data             *Data             `json:"data,omitempty" yaml:"data,omitempty"`
+	Copy             *Copy             `json:"copy,omitempty" yaml:"copy,omitempty"`
+	CopyFromHost     *CopyFromHost     `json:"copyFromHost,omitempty" yaml:"copyFromHost,omitempty"`
+	ExecCopyFromHost *ExecCopyFromHost `json:"execCopyFromHost,omitempty" yaml:"execCopyFromHost,omitempty"`
+	HTTP             *HTTP             `json:"http,omitempty" yaml:"http,omitempty"`
+	Postgres         *Database         `json:"postgres,omitempty" yaml:"postgres,omitempty"`
+	Mysql            *Database         `json:"mysql,omitempty" yaml:"mysql,omitempty"`
+	Redis            *Database         `json:"redis,omitempty" yaml:"redis,omitempty"`
+	Collectd         *Collectd         `json:"collectd,omitempty" yaml:"collectd,omitempty"`
+	Ceph             *Ceph             `json:"ceph,omitempty" yaml:"ceph,omitempty"`
+	Longhorn         *Longhorn         `json:"longhorn,omitempty" yaml:"longhorn,omitempty"`
+	RegistryImages   *RegistryImages   `json:"registryImages,omitempty" yaml:"registryImages,omitempty"`
 }
 
 func (c *Collect) AccessReviewSpecs(overrideNS string) []authorizationv1.SelfSubjectAccessReviewSpec {

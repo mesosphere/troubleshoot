@@ -226,15 +226,15 @@ func (c *Collector) RunCollectorSync(clientConfig *rest.Config, client kubernete
 			namespace = c.Namespace
 		}
 		result, err = CopyFromHost(ctx, namespace, clientConfig, client, c.Collect.CopyFromHost)
-	} else if c.Collect.PrivilegedHostExec != nil {
-		namespace := c.Collect.PrivilegedHostExec.Namespace
+	} else if c.Collect.ExecCopyFromHost != nil {
+		namespace := c.Collect.ExecCopyFromHost.Namespace
 		if namespace == "" && c.Namespace == "" {
 			kubeconfig := k8sutil.GetKubeconfig()
 			namespace, _, _ = kubeconfig.Namespace()
 		} else if namespace == "" {
 			namespace = c.Namespace
 		}
-		result, err = PrivilegedHostExec(ctx, namespace, clientConfig, client, c.Collect.PrivilegedHostExec)
+		result, err = ExecCopyFromHost(ctx, namespace, clientConfig, client, c.Collect.ExecCopyFromHost)
 	} else if c.Collect.HTTP != nil {
 		result, err = HTTP(c, c.Collect.HTTP)
 	} else if c.Collect.Postgres != nil {
