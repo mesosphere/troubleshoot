@@ -14,7 +14,7 @@ forking the project).
 
 The list of changes compared to the upstream project.
 
-### `PrivilegedHostExec` collector
+### `ExecCopyFromHost` collector
 
 This is a new collector created specifically for gathering host level information
 from cluster nodes. The collector allows to run a provided container image in a
@@ -40,7 +40,7 @@ Example of a configuration:
 ```
 spec:
   collectors:
-    - privilegedHostExec:
+    - execCopyFromHost:
         name: node-diagnostics
         image: mesosphere/dkp-diagnostics-node-collector:latest
         timeout: 30s
@@ -101,5 +101,5 @@ Example of the data produced by running this collector:
 ```
 
 For more information about the configuration options see the
-`PrivilegedHostExec` in the `pkg/apis/troubleshoot/v1beta2/privileged_host_collector.go`
+`ExecCopyFromHost` in the `pkg/apis/troubleshoot/v1beta2/exec_copy_from_host.go`
 file.
