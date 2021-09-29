@@ -113,6 +113,16 @@ func ClusterResources(c *Collector, clusterResourcesCollector *troubleshootv1bet
 	output.SaveResult(c.BundlePath, "cluster-resources/custom-resource-definitions.json", bytes.NewBuffer(customResourceDefinitions))
 	output.SaveResult(c.BundlePath, "cluster-resources/custom-resource-definitions-errors.json", marshalErrors(crdErrors))
 
+	// crs
+	customResources, crErrors := crs(ctx, crdClient)
+	for k, v := range customResources {
+		clusterResourcesOutput[fmt.Sprintf("custom-resources/%v", k)] = v
+	}
+	clusterResourcesOutput["custom-resources/custom-resources-errors.json"], err = marshalNonNil(crErrors)
+	if err != nil {
+		return nil, err
+	}
+
 	// imagepullsecrets
 	imagePullSecrets, pullSecretsErrors := imagePullSecrets(ctx, client, namespaceNames)
 	for k, v := range imagePullSecrets {
@@ -500,6 +510,50 @@ func crdsV1beta(ctx context.Context, config *rest.Config) ([]byte, []string) {
 	}
 
 	return b, nil
+}
+
+func crs(ctx context.Context, client *apiextensionsv1beta1clientset.ApiextensionsV1beta1Client) (map[string][]byte, map[string]string) {
+	customResources := make(map[string][]byte)
+	errorList := make(map[string]string)
+	customResourceItems := struct {
+		metav1.TypeMeta `json:",inline"`
+		metav1.ListMeta `json:"metadata,omitempty"`
+		Items           []map[string]interface{} `json:"items"`
+	}{}
+	crds, err := client.CustomResourceDefinitions().List(ctx, metav1.ListOptions{})
+	if err != nil {
+		errorList["crdList"] = err.Error()
+		return customResources, errorList
+	}
+	// Loop through CRDs to fetch the CRs
+	for _, v := range crds.Items {
+		data := client.RESTClient().Get().AbsPath("/apis/" + v.Spec.Group + "/" + v.Spec.Version).Do(ctx)
+		apiResourceListObj, err := data.Get()
+		group := v.Spec.Group
+		if err != nil {
+			errorList[group] = err.Error()
+			continue
+		}
+		apiResourceList, _ := apiResourceListObj.(*metav1.APIResourceList)
+		groupVersion := apiResourceList.GroupVersion
+		for _, v := range apiResourceList.APIResources {
+			customResourceName := v.Name
+			if customResourceName != "" && !strings.ContainsAny(customResourceName, "/") {
+				fileName := customResourceName + "." + group + ".json"
+				customResourcesResponse, err := client.RESTClient().Get().AbsPath("/apis/" + groupVersion).Namespace("").Resource(customResourceName).DoRaw(ctx)
+				if err != nil {
+					errorList[fileName] = err.Error()
+					continue
+				}
+				_ = json.Unmarshal(customResourcesResponse, &customResourceItems)
+				if len(customResourceItems.Items) != 0 {
+					customResources[fileName] = customResourcesResponse
+				}
+			}
+		}
+	}
+	//TODO: Improve formatting of the custom resources output
+	return customResources, errorList
 }
 
 func imagePullSecrets(ctx context.Context, client *kubernetes.Clientset, namespaces []string) (map[string][]byte, map[string]string) {
