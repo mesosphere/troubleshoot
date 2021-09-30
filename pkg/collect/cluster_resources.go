@@ -116,9 +116,9 @@ func ClusterResources(c *Collector, clusterResourcesCollector *troubleshootv1bet
 	// crs
 	customResources, crErrors := crs(ctx, crdClient)
 	for k, v := range customResources {
-		clusterResourcesOutput[fmt.Sprintf("custom-resources/%v", k)] = v
+		output.SaveResult(c.BundlePath, fmt.Sprintf("custom-resources/%v", k), bytes.NewBuffer(v))
 	}
-	clusterResourcesOutput["custom-resources/custom-resources-errors.json"], err = marshalNonNil(crErrors)
+	output.SaveResult(c.BundlePath, "custom-resources/custom-resources-errors.json", marshalErrors(crErrors))
 	if err != nil {
 		return nil, err
 	}
