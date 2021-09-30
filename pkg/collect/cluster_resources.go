@@ -114,7 +114,7 @@ func ClusterResources(c *Collector, clusterResourcesCollector *troubleshootv1bet
 	output.SaveResult(c.BundlePath, "cluster-resources/custom-resource-definitions-errors.json", marshalErrors(crdErrors))
 
 	// crs
-	customResources, crErrors := crs(ctx, crdClient)
+	customResources, crErrors := crs(ctx, crdClient, namespaceNames)
 	for k, v := range customResources {
 		output.SaveResult(c.BundlePath, fmt.Sprintf("custom-resources/%v", k), bytes.NewBuffer(v))
 	}
@@ -512,7 +512,11 @@ func crdsV1beta(ctx context.Context, config *rest.Config) ([]byte, []string) {
 	return b, nil
 }
 
-func crs(ctx context.Context, client *apiextensionsv1beta1clientset.ApiextensionsV1beta1Client) (map[string][]byte, map[string]string) {
+func crs(
+	ctx context.Context,
+	client *apiextensionsv1beta1clientset.ApiextensionsV1beta1Client,
+	namespaceNames []string,
+) (map[string][]byte, map[string]string) {
 	customResources := make(map[string][]byte)
 	errorList := make(map[string]string)
 	customResourceItems := struct {
@@ -547,7 +551,12 @@ func crs(ctx context.Context, client *apiextensionsv1beta1clientset.Apiextension
 				}
 				_ = json.Unmarshal(customResourcesResponse, &customResourceItems)
 				if len(customResourceItems.Items) != 0 {
-					customResources[fileName] = customResourcesResponse
+					b, err := json.MarshalIndent(customResourceItems.Items, "", "  ")
+					if err != nil {
+						errorList[fileName] = err.Error()
+						continue
+					}
+					customResources[fileName] = b
 				}
 			}
 		}
