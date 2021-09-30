@@ -59,11 +59,12 @@ const (
 // nodes in the cluster and copies the data produced by the container.
 func ExecCopyFromHost(
 	ctx context.Context,
+	c *Collector,
+	collector *troubleshootv1beta2.ExecCopyFromHost,
 	namespace string,
 	clientConfig *restclient.Config,
 	client kubernetes.Interface,
-	collector *troubleshootv1beta2.ExecCopyFromHost,
-) (map[string][]byte, error) {
+) (CollectorResult, error) {
 	labels := map[string]string{
 		"app.kubernetes.io/managed-by":        "troubleshoot.sh",
 		"troubleshoot.sh/collector":           "execcopyfromhost",
@@ -92,7 +93,7 @@ func ExecCopyFromHost(
 	defer cancel()
 
 	errCh := make(chan error, 1)
-	resultCh := make(chan map[string][]byte, 1)
+	resultCh := make(chan CollectorResult, 1)
 	go func() {
 		var outputPath string
 		if collector.Name != "" {
@@ -101,7 +102,7 @@ func ExecCopyFromHost(
 			outputPath = labels["troubleshoot.sh/execcopyfromhost-id"]
 		}
 		b, err := execCopyFromHostGetFilesFromPods(
-			childCtx, clientConfig, client, collector,
+			childCtx, c, clientConfig, client, collector,
 			outputPath, labels, namespace,
 		)
 		if err != nil {
@@ -312,13 +313,14 @@ func execCopyFromHostCreateDaemonSet(
 
 func execCopyFromHostGetFilesFromPods(
 	ctx context.Context,
+	c *Collector,
 	clientConfig *restclient.Config,
 	client kubernetes.Interface,
 	collector *troubleshootv1beta2.ExecCopyFromHost,
 	outputPath string,
 	labelSelector map[string]string,
 	namespace string,
-) (map[string][]byte, error) {
+) (CollectorResult, error) {
 	opts := metav1.ListOptions{
 		LabelSelector: labels.SelectorFromSet(labelSelector).String(),
 	}
@@ -332,33 +334,26 @@ func execCopyFromHostGetFilesFromPods(
 		podNames = append(podNames, pod.Name)
 	}
 
-	runOutput := map[string][]byte{}
+	output := NewResult()
 	for _, pod := range pods.Items {
 		outputNodePath := filepath.Join(outputPath, pod.Spec.NodeName)
-		stdout, stderr, err := getFilesFromPod(
-			ctx, clientConfig, client, pod.Name, "pause", namespace, "/data")
+		files, stderr, err := copyFilesFromPod(
+			ctx, filepath.Join(c.BundlePath, outputNodePath), clientConfig, client, pod.Name, "pause", namespace, "/data", collector.ExtractArchive)
 		if err != nil {
-			runOutput[filepath.Join(outputNodePath, "error.txt")] = []byte(err.Error())
-			if len(stdout) > 0 {
-				runOutput[filepath.Join(outputNodePath, "stdout.txt")] = stdout
-			}
+			output.SaveResult(c.BundlePath, filepath.Join(outputNodePath, "error.txt"), bytes.NewBuffer([]byte(err.Error())))
 			if len(stderr) > 0 {
-				runOutput[filepath.Join(outputNodePath, "stderr.txt")] = stderr
+				output.SaveResult(c.BundlePath, filepath.Join(outputNodePath, "stderr.txt"), bytes.NewBuffer(stderr))
 			}
-		} else {
-			if collector.ExtractArchive {
-				files, err := extractTar(bytes.NewReader(stdout))
-				if err != nil {
-					runOutput[filepath.Join(outputNodePath, "error.txt")] = []byte(errors.Wrap(err, "extract tar").Error())
-				}
-				for name, data := range files {
-					runOutput[filepath.Join(outputNodePath, name)] = data
-				}
-			} else {
-				runOutput[filepath.Join(outputNodePath, "archive.tar")] = stdout
+		}
+
+		for k, v := range files {
+			relPath, err := filepath.Rel(c.BundlePath, filepath.Join(c.BundlePath, filepath.Join(outputNodePath, k)))
+			if err != nil {
+				return nil, errors.Wrap(err, "relative path")
 			}
+			output[relPath] = v
 		}
 	}
 
-	return runOutput, nil
+	return output, nil
 }
