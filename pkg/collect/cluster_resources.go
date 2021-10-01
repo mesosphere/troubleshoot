@@ -512,11 +512,7 @@ func crdsV1beta(ctx context.Context, config *rest.Config) ([]byte, []string) {
 	return b, nil
 }
 
-func crs(
-	ctx context.Context,
-	client *apiextensionsv1beta1clientset.ApiextensionsV1beta1Client,
-	namespaceNames []string,
-) (map[string][]byte, map[string]string) {
+func crs(ctx context.Context, client *apiextensionsv1beta1clientset.ApiextensionsV1beta1Client, namespaces []string) (map[string][]byte, map[string]string) {
 	customResources := make(map[string][]byte)
 	errorList := make(map[string]string)
 	customResourceItems := struct {
@@ -540,11 +536,17 @@ func crs(
 		}
 		apiResourceList, _ := apiResourceListObj.(*metav1.APIResourceList)
 		groupVersion := apiResourceList.GroupVersion
+
+		var namespace string
+		if len(namespaces) == 1 {
+			namespace = namespaces[0]
+		}
+
 		for _, v := range apiResourceList.APIResources {
 			customResourceName := v.Name
 			if customResourceName != "" && !strings.ContainsAny(customResourceName, "/") {
 				fileName := customResourceName + "." + group + ".json"
-				customResourcesResponse, err := client.RESTClient().Get().AbsPath("/apis/" + groupVersion).Namespace("").Resource(customResourceName).DoRaw(ctx)
+				customResourcesResponse, err := client.RESTClient().Get().AbsPath("/apis/" + groupVersion).Namespace(namespace).Resource(customResourceName).DoRaw(ctx)
 				if err != nil {
 					errorList[fileName] = err.Error()
 					continue
