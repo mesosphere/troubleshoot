@@ -21,6 +21,7 @@ type ClusterInfo struct {
 
 type ClusterResources struct {
 	CollectorMeta `json:",inline" yaml:",inline"`
+	Namespaces    []string `json:"namespaces,omitempty" yaml:"namespaces,omitempty"`
 }
 
 type Secret struct {
@@ -453,6 +454,10 @@ func (c *Collect) GetName() string {
 		collector = "exec"
 		name = c.Exec.CollectorName
 		selector = strings.Join(c.Exec.Selector, ",")
+	}
+	if c.Data != nil {
+		collector = "data"
+		name = c.Data.CollectorName
 	}
 	if c.Copy != nil {
 		collector = "copy"
