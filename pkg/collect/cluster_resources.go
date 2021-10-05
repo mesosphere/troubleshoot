@@ -449,7 +449,7 @@ func crs(ctx context.Context, client *apiextensionsv1beta1clientset.Apiextension
 					if !strings.ContainsAny(customResourceName, "/") {
 						customResourcesResponse, err := client.RESTClient().Get().AbsPath("/apis/" + groupVersion).Namespace(namespace).Resource(customResourceName).DoRaw(ctx)
 						if err != nil {
-							errorList[fmt.Sprintf("%s/%s", group, namespace)] = err.Error()
+							errorList[fmt.Sprintf("%s.%s/%s", customResourceName, group, namespace)] = err.Error()
 							continue
 						}
 						_ = json.Unmarshal(customResourcesResponse, &customResourceItems)
@@ -467,7 +467,7 @@ func crs(ctx context.Context, client *apiextensionsv1beta1clientset.Apiextension
 				if !strings.ContainsAny(customResourceName, "/") {
 					customResourcesResponse, err := client.RESTClient().Get().AbsPath("/apis/" + groupVersion).Namespace("").Resource(customResourceName).DoRaw(ctx)
 					if err != nil {
-						errorList[group] = err.Error()
+						errorList[fmt.Sprintf("%s.%s", customResourceName, group)] = err.Error()
 						continue
 					}
 					_ = json.Unmarshal(customResourcesResponse, &customResourceItems)
