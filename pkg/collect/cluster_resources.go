@@ -415,11 +415,7 @@ func crds(ctx context.Context, client *apiextensionsv1beta1clientset.Apiextensio
 	return b, nil
 }
 
-func crs(
-	ctx context.Context,
-	client *apiextensionsv1beta1clientset.ApiextensionsV1beta1Client,
-	namespaceNames []string,
-) (map[string][]byte, map[string]string) {
+func crs(ctx context.Context, client *apiextensionsv1beta1clientset.ApiextensionsV1beta1Client, namespaces []string) (map[string][]byte, map[string]string) {
 	customResources := make(map[string][]byte)
 	errorList := make(map[string]string)
 	customResourceItems := struct {
@@ -427,6 +423,7 @@ func crs(
 		metav1.ListMeta `json:"metadata,omitempty"`
 		Items           []map[string]interface{} `json:"items"`
 	}{}
+
 	crds, err := client.CustomResourceDefinitions().List(ctx, metav1.ListOptions{})
 	if err != nil {
 		errorList["crdList"] = err.Error()
@@ -443,27 +440,50 @@ func crs(
 		}
 		apiResourceList, _ := apiResourceListObj.(*metav1.APIResourceList)
 		groupVersion := apiResourceList.GroupVersion
-		for _, v := range apiResourceList.APIResources {
-			customResourceName := v.Name
-			if customResourceName != "" && !strings.ContainsAny(customResourceName, "/") {
-				fileName := customResourceName + "." + group + ".json"
-				customResourcesResponse, err := client.RESTClient().Get().AbsPath("/apis/" + groupVersion).Namespace("").Resource(customResourceName).DoRaw(ctx)
-				if err != nil {
-					errorList[fileName] = err.Error()
-					continue
+
+		for _, resource := range apiResourceList.APIResources {
+			customResourceName := resource.Name
+			if resource.Namespaced {
+				for _, namespace := range namespaces {
+					// Avoid subresources
+					if !strings.ContainsAny(customResourceName, "/") {
+						customResourcesResponse, err := client.RESTClient().Get().AbsPath("/apis/" + groupVersion).Namespace(namespace).Resource(customResourceName).DoRaw(ctx)
+						if err != nil {
+							errorList[fmt.Sprintf("%s.%s/%s", customResourceName, group, namespace)] = err.Error()
+							continue
+						}
+						_ = json.Unmarshal(customResourcesResponse, &customResourceItems)
+						if len(customResourceItems.Items) != 0 {
+							b, err := json.MarshalIndent(customResourceItems.Items, "", "  ")
+							if err != nil {
+								errorList[fmt.Sprintf("%s.%s/%s", customResourceName, group, namespace)] = err.Error()
+								continue
+							}
+							customResources[fmt.Sprintf("%s.%s/%s.json", customResourceName, group, namespace)] = b
+						}
+					}
 				}
-				_ = json.Unmarshal(customResourcesResponse, &customResourceItems)
-				if len(customResourceItems.Items) != 0 {
-					b, err := json.MarshalIndent(customResourceItems.Items, "", "  ")
+			} else {
+				if !strings.ContainsAny(customResourceName, "/") {
+					customResourcesResponse, err := client.RESTClient().Get().AbsPath("/apis/" + groupVersion).Namespace("").Resource(customResourceName).DoRaw(ctx)
 					if err != nil {
-						errorList[fileName] = err.Error()
+						errorList[fmt.Sprintf("%s.%s", customResourceName, group)] = err.Error()
 						continue
 					}
-					customResources[fileName] = b
+					_ = json.Unmarshal(customResourcesResponse, &customResourceItems)
+					if len(customResourceItems.Items) != 0 {
+						b, err := json.MarshalIndent(customResourceItems.Items, "", "  ")
+						if err != nil {
+							errorList[fmt.Sprintf("%s.%s", customResourceName, group)] = err.Error()
+							continue
+						}
+						customResources[fmt.Sprintf("%s.%s.json", customResourceName, group)] = b
+					}
 				}
 			}
 		}
 	}
+
 	//TODO: Improve formatting of the custom resources output
 	return customResources, errorList
 }
