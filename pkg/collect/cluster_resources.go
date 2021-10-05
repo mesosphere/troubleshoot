@@ -441,10 +441,10 @@ func crs(ctx context.Context, client *apiextensionsv1beta1clientset.Apiextension
 		apiResourceList, _ := apiResourceListObj.(*metav1.APIResourceList)
 		groupVersion := apiResourceList.GroupVersion
 
-		for _, namespace := range namespaces {
-			for _, resource := range apiResourceList.APIResources {
-				customResourceName := resource.Name
-				if resource.Namespaced {
+		for _, resource := range apiResourceList.APIResources {
+			customResourceName := resource.Name
+			if resource.Namespaced {
+				for _, namespace := range namespaces {
 					// Avoid subresources
 					if !strings.ContainsAny(customResourceName, "/") {
 						customResourcesResponse, err := client.RESTClient().Get().AbsPath("/apis/" + groupVersion).Namespace(namespace).Resource(customResourceName).DoRaw(ctx)
@@ -456,33 +456,34 @@ func crs(ctx context.Context, client *apiextensionsv1beta1clientset.Apiextension
 						if len(customResourceItems.Items) != 0 {
 							b, err := json.MarshalIndent(customResourceItems.Items, "", "  ")
 							if err != nil {
-								errorList[fmt.Sprintf("%s/%s", group, namespace)] = err.Error()
+								errorList[fmt.Sprintf("%s.%s/%s", customResourceName, group, namespace)] = err.Error()
 								continue
 							}
-							customResources[fmt.Sprintf("%s/%s.json", group, namespace)] = b
+							customResources[fmt.Sprintf("%s.%s/%s.json", customResourceName, group, namespace)] = b
 						}
 					}
-				} else {
-					if !strings.ContainsAny(customResourceName, "/") {
-						customResourcesResponse, err := client.RESTClient().Get().AbsPath("/apis/" + groupVersion).Namespace("").Resource(customResourceName).DoRaw(ctx)
+				}
+			} else {
+				if !strings.ContainsAny(customResourceName, "/") {
+					customResourcesResponse, err := client.RESTClient().Get().AbsPath("/apis/" + groupVersion).Namespace("").Resource(customResourceName).DoRaw(ctx)
+					if err != nil {
+						errorList[group] = err.Error()
+						continue
+					}
+					_ = json.Unmarshal(customResourcesResponse, &customResourceItems)
+					if len(customResourceItems.Items) != 0 {
+						b, err := json.MarshalIndent(customResourceItems.Items, "", "  ")
 						if err != nil {
-							errorList[group] = err.Error()
+							errorList[fmt.Sprintf("%s.%s", customResourceName, group)] = err.Error()
 							continue
 						}
-						_ = json.Unmarshal(customResourcesResponse, &customResourceItems)
-						if len(customResourceItems.Items) != 0 {
-							b, err := json.MarshalIndent(customResourceItems.Items, "", "  ")
-							if err != nil {
-								errorList[group] = err.Error()
-								continue
-							}
-							customResources[fmt.Sprintf("%s.json", group)] = b
-						}
+						customResources[fmt.Sprintf("%s.%s.json", customResourceName, group)] = b
 					}
 				}
 			}
 		}
 	}
+
 	//TODO: Improve formatting of the custom resources output
 	return customResources, errorList
 }
