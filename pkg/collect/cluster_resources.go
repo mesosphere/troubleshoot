@@ -439,7 +439,7 @@ func crs(ctx context.Context, client dynamic.Interface, crdClient *apiextensions
 
 	// Loop through CRDs to fetch the CRs
 	for _, crd := range crds.Items {
-		// A resource that contains '/' is a subresource type and it has not
+		// A resource that contains '/' is a subresource type and it has no
 		// object instances
 		if strings.ContainsAny(crd.Name, "/") {
 			continue
