@@ -13,9 +13,14 @@ import (
 	authorizationv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	apiextensionsv1clientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1"
 	apiextensionsv1beta1clientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1beta1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
@@ -24,6 +29,16 @@ import (
 
 func ClusterResources(c *Collector, clusterResourcesCollector *troubleshootv1beta2.ClusterResources) (CollectorResult, error) {
 	client, err := kubernetes.NewForConfig(c.ClientConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	dynamicClient, err := dynamic.NewForConfig(c.ClientConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	crdClient, err := apiextensionsv1clientset.NewForConfig(c.ClientConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -114,7 +129,7 @@ func ClusterResources(c *Collector, clusterResourcesCollector *troubleshootv1bet
 	output.SaveResult(c.BundlePath, "cluster-resources/custom-resource-definitions-errors.json", marshalErrors(crdErrors))
 
 	// crs
-	customResources, crErrors := crs(ctx, crdClient, namespaceNames)
+	customResources, crErrors := crs(ctx, dynamicClient, crdClient, namespaceNames)
 	for k, v := range customResources {
 		output.SaveResult(c.BundlePath, fmt.Sprintf("custom-resources/%v", k), bytes.NewBuffer(v))
 	}
@@ -512,76 +527,92 @@ func crdsV1beta(ctx context.Context, config *rest.Config) ([]byte, []string) {
 	return b, nil
 }
 
-func crs(ctx context.Context, client *apiextensionsv1beta1clientset.ApiextensionsV1beta1Client, namespaces []string) (map[string][]byte, map[string]string) {
+func crs(ctx context.Context, client dynamic.Interface, crdClient *apiextensionsv1clientset.ApiextensionsV1Client, namespaces []string) (map[string][]byte, map[string]string) {
 	customResources := make(map[string][]byte)
 	errorList := make(map[string]string)
-	customResourceItems := struct {
-		metav1.TypeMeta `json:",inline"`
-		metav1.ListMeta `json:"metadata,omitempty"`
-		Items           []map[string]interface{} `json:"items"`
-	}{}
 
-	crds, err := client.CustomResourceDefinitions().List(ctx, metav1.ListOptions{})
+	crds, err := crdClient.CustomResourceDefinitions().List(ctx, metav1.ListOptions{})
 	if err != nil {
 		errorList["crdList"] = err.Error()
 		return customResources, errorList
 	}
+
+	metaAccessor := meta.NewAccessor()
+
 	// Loop through CRDs to fetch the CRs
-	for _, v := range crds.Items {
-		data := client.RESTClient().Get().AbsPath("/apis/" + v.Spec.Group + "/" + v.Spec.Version).Do(ctx)
-		apiResourceListObj, err := data.Get()
-		group := v.Spec.Group
-		if err != nil {
-			errorList[group] = err.Error()
+	for _, crd := range crds.Items {
+		// A resource that contains '/' is a subresource type and it has not
+		// object instances
+		if strings.ContainsAny(crd.Name, "/") {
 			continue
 		}
-		apiResourceList, _ := apiResourceListObj.(*metav1.APIResourceList)
-		groupVersion := apiResourceList.GroupVersion
 
-		for _, resource := range apiResourceList.APIResources {
-			customResourceName := resource.Name
-			if resource.Namespaced {
-				for _, namespace := range namespaces {
-					// Avoid subresources
-					if !strings.ContainsAny(customResourceName, "/") {
-						customResourcesResponse, err := client.RESTClient().Get().AbsPath("/apis/" + groupVersion).Namespace(namespace).Resource(customResourceName).DoRaw(ctx)
-						if err != nil {
-							errorList[fmt.Sprintf("%s.%s/%s", customResourceName, group, namespace)] = err.Error()
-							continue
-						}
-						_ = json.Unmarshal(customResourcesResponse, &customResourceItems)
-						if len(customResourceItems.Items) != 0 {
-							b, err := json.MarshalIndent(customResourceItems.Items, "", "  ")
-							if err != nil {
-								errorList[fmt.Sprintf("%s.%s/%s", customResourceName, group, namespace)] = err.Error()
-								continue
-							}
-							customResources[fmt.Sprintf("%s.%s/%s.json", customResourceName, group, namespace)] = b
-						}
-					}
+		gvr := schema.GroupVersionResource{
+			Group:    crd.Spec.Group,
+			Version:  crd.Spec.Versions[0].Name,
+			Resource: crd.Spec.Names.Plural,
+		}
+		isNamespacedResource := crd.Spec.Scope == apiextensionsv1.NamespaceScoped
+
+		// Fetch all resources of given type
+		customResourceList, err := client.Resource(gvr).List(ctx, metav1.ListOptions{})
+		if err != nil {
+			errorList[crd.Name] = err.Error()
+			continue
+		}
+
+		if len(customResourceList.Items) == 0 {
+			continue
+		}
+
+		if !isNamespacedResource {
+			b, err := json.MarshalIndent(customResourceList.Items, "", "  ")
+			if err != nil {
+				errorList[crd.Name] = err.Error()
+				continue
+			}
+			customResources[fmt.Sprintf("%s.json", crd.Name)] = b
+		} else {
+			// Group fetched resources by the namespace
+			perNamespace := map[string][]runtime.Object{}
+			errors := []string{}
+
+			customResourceList.EachListItem(func(obj runtime.Object) error {
+				ns, err := metaAccessor.Namespace(obj)
+				if err != nil {
+					errors = append(errors, err.Error())
+					return nil
 				}
-			} else {
-				if !strings.ContainsAny(customResourceName, "/") {
-					customResourcesResponse, err := client.RESTClient().Get().AbsPath("/apis/" + groupVersion).Namespace("").Resource(customResourceName).DoRaw(ctx)
-					if err != nil {
-						errorList[fmt.Sprintf("%s.%s", customResourceName, group)] = err.Error()
-						continue
-					}
-					_ = json.Unmarshal(customResourcesResponse, &customResourceItems)
-					if len(customResourceItems.Items) != 0 {
-						b, err := json.MarshalIndent(customResourceItems.Items, "", "  ")
-						if err != nil {
-							errorList[fmt.Sprintf("%s.%s", customResourceName, group)] = err.Error()
-							continue
-						}
-						customResources[fmt.Sprintf("%s.%s.json", customResourceName, group)] = b
-					}
+
+				if perNamespace[ns] == nil {
+					perNamespace[ns] = []runtime.Object{}
 				}
+				perNamespace[ns] = append(perNamespace[ns], obj)
+				return nil
+			})
+
+			if len(errors) > 0 {
+				errorList[crd.Name] = strings.Join(errors, "\n")
+			}
+
+			// Only include resources from requested namespaces
+			for _, ns := range namespaces {
+				if len(perNamespace[ns]) == 0 {
+					continue
+				}
+
+				namespacedName := fmt.Sprintf("%s/%s", crd.Name, ns)
+				b, err := json.MarshalIndent(perNamespace[ns], "", "  ")
+				if err != nil {
+					errorList[namespacedName] = err.Error()
+					continue
+				}
+
+				customResources[fmt.Sprintf("%s.json", namespacedName)] = b
 			}
 		}
 	}
 
-	//TODO: Improve formatting of the custom resources output
 	return customResources, errorList
 }
 
