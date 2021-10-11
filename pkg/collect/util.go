@@ -43,6 +43,10 @@ func DeterministicIDForCollector(collector *troubleshootv1beta2.Collect) string 
 		unsafeID = fmt.Sprintf("logs-%s-%s", collector.Logs.Namespace, selectorToString(collector.Logs.Selector))
 	}
 
+	if collector.AllLogs != nil {
+		unsafeID = fmt.Sprintf("logs-%s-%s", namespaceToString(collector.AllLogs.Namespaces), selectorToString(collector.Logs.Selector))
+	}
+
 	if collector.Run != nil {
 		unsafeID = "run"
 		if collector.Run.CollectorName != "" {
@@ -73,6 +77,10 @@ func DeterministicIDForCollector(collector *troubleshootv1beta2.Collect) string 
 
 func selectorToString(selector []string) string {
 	return strings.Replace(strings.Join(selector, "-"), "=", "-", -1)
+}
+
+func namespaceToString(namespaces []string) string {
+	return strings.Join(namespaces, "-")
 }
 
 func pathToString(path string) string {
