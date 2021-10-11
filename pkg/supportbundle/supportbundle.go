@@ -27,6 +27,7 @@ type SupportBundleCreateOpts struct {
 	ProgressChan              chan interface{}
 	SinceTime                 *time.Time
 	FromCLI                   bool
+	DefaultRedactorsDisabled  bool
 }
 
 type SupportBundleResponse struct {

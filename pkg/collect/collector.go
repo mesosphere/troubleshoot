@@ -16,12 +16,13 @@ import (
 )
 
 type Collector struct {
-	Collect      *troubleshootv1beta2.Collect
-	Redact       bool
-	RBACErrors   []error
-	ClientConfig *rest.Config
-	Namespace    string
-	BundlePath   string
+	Collect                  *troubleshootv1beta2.Collect
+	Redact                   bool
+	DefaultRedactorsDisabled bool
+	RBACErrors               []error
+	ClientConfig             *rest.Config
+	Namespace                string
+	BundlePath               string
 }
 
 type Collectors []*Collector
@@ -269,7 +270,7 @@ func (c *Collector) RunCollectorSync(clientConfig *rest.Config, client kubernete
 	}
 
 	if c.Redact {
-		err = redactResult(c.BundlePath, result, globalRedactors)
+		err = redactResult(c.BundlePath, result, globalRedactors, c.DefaultRedactorsDisabled)
 		err = errors.Wrap(err, "failed to redact")
 	}
 

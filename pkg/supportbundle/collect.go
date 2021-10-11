@@ -22,7 +22,6 @@ import (
 
 // TODO (dan): This is VERY similar to the Preflight collect package and should be refactored.
 func runCollectors(collectors []*troubleshootv1beta2.Collect, additionalRedactors *troubleshootv1beta2.Redactor, bundlePath string, opts SupportBundleCreateOpts) (collect.CollectorResult, error) {
-
 	collectSpecs := make([]*troubleshootv1beta2.Collect, 0)
 	collectSpecs = append(collectSpecs, collectors...)
 	collectSpecs = ensureCollectorInList(collectSpecs, troubleshootv1beta2.Collect{ClusterInfo: &troubleshootv1beta2.ClusterInfo{}})
@@ -31,11 +30,12 @@ func runCollectors(collectors []*troubleshootv1beta2.Collect, additionalRedactor
 	var cleanedCollectors collect.Collectors
 	for _, desiredCollector := range collectSpecs {
 		collector := collect.Collector{
-			Redact:       true,
-			Collect:      desiredCollector,
-			ClientConfig: opts.KubernetesRestConfig,
-			Namespace:    opts.Namespace,
-			BundlePath:   bundlePath,
+			Redact:                   true,
+			DefaultRedactorsDisabled: opts.DefaultRedactorsDisabled,
+			Collect:                  desiredCollector,
+			ClientConfig:             opts.KubernetesRestConfig,
+			Namespace:                opts.Namespace,
+			BundlePath:               bundlePath,
 		}
 		cleanedCollectors = append(cleanedCollectors, &collector)
 	}
@@ -159,7 +159,6 @@ func getAnalysisFile(analyzeResults []*analyze.AnalyzeResult) (io.Reader, error)
 }
 
 func applyLogSinceTime(sinceTime time.Time, collectors *collect.Collectors) {
-
 	for _, collector := range *collectors {
 		if collector.Collect.Logs != nil {
 			if collector.Collect.Logs.Limits == nil {

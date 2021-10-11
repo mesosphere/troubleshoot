@@ -45,10 +45,14 @@ type Redaction struct {
 	IsDefaultRedactor bool   `json:"isDefaultRedactor" yaml:"isDefaultRedactor"`
 }
 
-func Redact(input io.Reader, path string, additionalRedactors []*troubleshootv1beta2.Redact) (io.Reader, error) {
-	redactors, err := getRedactors(path)
-	if err != nil {
-		return nil, err
+func Redact(input io.Reader, path string, additionalRedactors []*troubleshootv1beta2.Redact, defaultRedactorsDisabled bool) (io.Reader, error) {
+	redactors := []Redactor{}
+	if !defaultRedactorsDisabled {
+		var err error
+		redactors, err = getRedactors(path)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	builtRedactors, err := buildAdditionalRedactors(path, additionalRedactors)
