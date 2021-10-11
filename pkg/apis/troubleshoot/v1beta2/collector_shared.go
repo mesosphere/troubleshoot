@@ -58,6 +58,15 @@ type Logs struct {
 	Limits         *LogLimits `json:"limits,omitempty" yaml:"omitempty"`
 }
 
+type AllLogs struct {
+	CollectorMeta  `json:",inline" yaml:",inline"`
+	Name           string     `json:"name,omitempty" yaml:"name,omitempty"`
+	Selector       []string   `json:"selector" yaml:"selector"`
+	Namespaces     []string   `json:"namespaces,omitempty" yaml:"namespaces,omitempty"`
+	ContainerNames []string   `json:"containerNames,omitempty" yaml:"containerNames,omitempty"`
+	Limits         *LogLimits `json:"limits,omitempty" yaml:"omitempty"`
+}
+
 type Data struct {
 	CollectorMeta `json:",inline" yaml:",inline"`
 	Name          string `json:"name,omitempty" yaml:"name,omitempty"`
@@ -223,6 +232,7 @@ type Collect struct {
 	Secret           *Secret           `json:"secret,omitempty" yaml:"secret,omitempty"`
 	ConfigMap        *ConfigMap        `json:"configMap,omitempty" yaml:"configMap,omitempty"`
 	Logs             *Logs             `json:"logs,omitempty" yaml:"logs,omitempty"`
+	AllLogs          *AllLogs          `json:"allLogs,omitempty" yaml:"allLogs,omitempty"`
 	Run              *Run              `json:"run,omitempty" yaml:"run,omitempty"`
 	Exec             *Exec             `json:"exec,omitempty" yaml:"exec,omitempty"`
 	Data             *Data             `json:"data,omitempty" yaml:"data,omitempty"`
