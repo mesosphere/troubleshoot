@@ -182,6 +182,7 @@ func runTroubleshoot(v *viper.Viper, arg string) error {
 		ProgressChan:              progressChan,
 		SinceTime:                 sinceTime,
 		FromCLI:                   true,
+		Redact:                    true,
 	}
 
 	nonInteractiveOutput := analysisOutput{}
