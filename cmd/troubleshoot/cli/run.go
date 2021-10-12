@@ -25,6 +25,7 @@ import (
 	"github.com/replicatedhq/troubleshoot/pkg/docrewrite"
 	"github.com/replicatedhq/troubleshoot/pkg/httputil"
 	"github.com/replicatedhq/troubleshoot/pkg/k8sutil"
+	"github.com/replicatedhq/troubleshoot/pkg/redact"
 	"github.com/replicatedhq/troubleshoot/pkg/supportbundle"
 	"github.com/spf13/viper"
 	spin "github.com/tj/go-spin"
@@ -85,6 +86,7 @@ func runTroubleshoot(v *viper.Viper, arg string) error {
 	decode := scheme.Codecs.UniversalDeserializer().Decode
 
 	additionalRedactors := &troubleshootv1beta2.Redactor{}
+	additionalRedactors.Spec.Redactors = append(additionalRedactors.Spec.Redactors, redact.DefaultRedactors()...)
 	for idx, redactor := range v.GetStringSlice("redactors") {
 		redactorObj, err := supportbundle.GetRedactorFromURI(redactor)
 		if err != nil {

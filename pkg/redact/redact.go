@@ -46,16 +46,10 @@ type Redaction struct {
 }
 
 func Redact(input io.Reader, path string, additionalRedactors []*troubleshootv1beta2.Redact) (io.Reader, error) {
-	redactors, err := getRedactors(path)
-	if err != nil {
-		return nil, err
-	}
-
-	builtRedactors, err := buildAdditionalRedactors(path, additionalRedactors)
+	redactors, err := buildAdditionalRedactors(path, additionalRedactors)
 	if err != nil {
 		return nil, errors.Wrap(err, "build custom redactors")
 	}
-	redactors = append(redactors, builtRedactors...)
 
 	nextReader := input
 	for _, r := range redactors {
@@ -157,7 +151,7 @@ func redactMatchesPath(path string, redact *troubleshootv1beta2.Redact) (bool, e
 	return false, nil
 }
 
-func getRedactors(path string) ([]Redactor, error) {
+func DefaultRedactors() []*troubleshootv1beta2.Redact {
 	// TODO: Make this configurable
 
 	// (?i) makes it case insensitive
@@ -255,11 +249,17 @@ func getRedactors(path string) ([]Redactor, error) {
 		},
 	}
 
-	redactors := make([]Redactor, 0)
+	redactors := make([]*troubleshootv1beta2.Redact, 0)
 	for _, re := range singleLines {
-		r, err := NewSingleLineRedactor(re.regex, MASK_TEXT, path, re.name, true)
-		if err != nil {
-			return nil, err // maybe skip broken ones?
+		r := &troubleshootv1beta2.Redact{
+			Name: re.name,
+			Removals: troubleshootv1beta2.Removals{
+				Regex: []troubleshootv1beta2.Regex{
+					{
+						Redactor: re.regex,
+					},
+				},
+			},
 		}
 		redactors = append(redactors, r)
 	}
@@ -307,14 +307,20 @@ func getRedactors(path string) ([]Redactor, error) {
 	}
 
 	for _, l := range doubleLines {
-		r, err := NewMultiLineRedactor(l.line1, l.line2, MASK_TEXT, path, l.name, true)
-		if err != nil {
-			return nil, err // maybe skip broken ones?
+		r := &troubleshootv1beta2.Redact{
+			Name: l.name,
+			Removals: troubleshootv1beta2.Removals{
+				Regex: []troubleshootv1beta2.Regex{
+					{
+						Selector: l.line1,
+						Redactor: l.line2,
+					},
+				},
+			},
 		}
 		redactors = append(redactors, r)
 	}
-
-	return redactors, nil
+	return redactors
 }
 
 func getReplacementPattern(re *regexp.Regexp, maskText string) string {
