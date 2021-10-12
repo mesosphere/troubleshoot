@@ -103,3 +103,71 @@ Example of the data produced by running this collector:
 For more information about the configuration options see the
 `ExecCopyFromHost` in the `pkg/apis/troubleshoot/v1beta2/exec_copy_from_host.go`
 file.
+
+
+### `AllLogs` collector
+This is a new collector created specifically for gathering pod logs from provided
+namespaces(or from all namespaces if those are not specified).
+
+This allows to us to collect logs of all the pods from all the namespaces. 
+The pod logs are collected under `allPodLogs` directory.
+
+The data written into diagnostics bundle look like:
+
+```
+<collector-name> / <namespace-name> / <pod-name> / (container1|container2|...)
+```
+
+#### Example configuration
+
+To collect logs from all pods from all namespaces:
+
+```yaml
+spec:
+  collectors:
+    - allLogs:
+        namespaces:
+          - "*"
+```
+
+To collect logs from all pods from selective namespaces:
+
+```yaml
+spec:
+  collectors:
+    - allLogs:
+        namespaces:
+          - default
+          - dev
+          - prod
+```
+
+Example of the data produced by running first collector:
+
+```
+allPodLogs
+├── default
+│   ├── nginx-deploy-8588f9dfb-5gz8w.log
+│   └── nginx-deploy-8588f9dfb-f8f2d.log
+├── dev
+│   └── elastic-dev-es-default-0
+│       ├── elastic-internal-init-filesystem.log
+│       └── elasticsearch.log
+├── elastic-system
+│   ├── elastic-operator-0.log
+│   └── elastic-operator-0-previous.log
+├── kube-system
+│   ├── coredns-558bd4d5db-4c42v.log
+│   ├── coredns-558bd4d5db-mstqq.log
+│   ├── etcd-kind-control-plane.log
+│   ├── kindnet-vsnpv.log
+│   ├── kube-apiserver-kind-control-plane.log
+│   ├── kube-controller-manager-kind-control-plane.log
+│   ├── kube-proxy-zmnf9.log
+│   └── kube-scheduler-kind-control-plane.log
+└── local-path-storage
+    └── local-path-provisioner-547f784dff-7czb6.log
+```
+
+For more information about the configuration options see `config/crds/troubleshoot.sh_collectors.yaml` & `pkg/collect/all_logs.go`
+files.
