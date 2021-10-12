@@ -24,11 +24,9 @@ func AllLogs(c *Collector, logsCollector *troubleshootv1beta2.AllLogs) (Collecto
 	ctx := context.Background()
 
 	// Set default logCollector Name if empty
-	logCollectorName := ""
+	logCollectorName := "allPodLogs"
 
-	if logsCollector.Name == "" {
-		logCollectorName = "allPodLogs"
-	} else {
+	if logsCollector.Name != "" {
 		logCollectorName = logsCollector.Name
 	}
 
@@ -36,7 +34,10 @@ func AllLogs(c *Collector, logsCollector *troubleshootv1beta2.AllLogs) (Collecto
 	if len(logsCollector.Namespaces) == 0 || logsCollector.Namespaces[0] == "*" {
 		_, namespaceList, namespaceErrors := getAllNamespaces(ctx, client)
 		if len(namespaceErrors) > 0 {
-			output.SaveResult(c.BundlePath, getAllLogsErrorsFileName(logsCollector), marshalErrors(namespaceErrors))
+			err = output.SaveResult(c.BundlePath, getAllLogsErrorsFileName(logsCollector), marshalErrors(namespaceErrors))
+			if err != nil {
+				return output, err
+			}
 		}
 		logsCollector.Namespaces = getNamespaceNames(namespaceList)
 	}
@@ -44,7 +45,10 @@ func AllLogs(c *Collector, logsCollector *troubleshootv1beta2.AllLogs) (Collecto
 	for _, namespace := range logsCollector.Namespaces {
 		pods, podsErrors := listPodsInNamespace(ctx, client, namespace, logsCollector.Selector)
 		if len(podsErrors) > 0 {
-			output.SaveResult(c.BundlePath, getAllLogsErrorsFileName(logsCollector), marshalErrors(podsErrors))
+			err = output.SaveResult(c.BundlePath, getAllLogsErrorsFileName(logsCollector), marshalErrors(podsErrors))
+			if err != nil {
+				return nil, err
+			}
 		}
 
 		for _, pod := range pods {
@@ -62,13 +66,13 @@ func AllLogs(c *Collector, logsCollector *troubleshootv1beta2.AllLogs) (Collecto
 					if len(containerNames) == 1 {
 						containerName = "" // if there was only one container, use the old behavior of not including the container name in the path
 					}
-					podLogs, err := saveNamespacedPodLogs(ctx, c.BundlePath, client, pod, logCollectorName, containerName, namespace, logsCollector.Limits, false)
+					podLogs, err := saveNamespacedPodLogs(ctx, c.BundlePath, client, pod, logCollectorName, containerName, namespace, logsCollector.Limits)
 					if err != nil {
-						key := fmt.Sprintf("%s/%s/%s-errors.json", namespace, logCollectorName, pod.Name)
+						key := fmt.Sprintf("%s/%s/%s-errors.json", logCollectorName, namespace, pod.Name)
 						if containerName != "" {
-							key = fmt.Sprintf("%s/%s/%s/%s-errors.json", namespace, logCollectorName, pod.Name, containerName)
+							key = fmt.Sprintf("%s/%s/%s/%s-errors.json", logCollectorName, namespace, pod.Name, containerName)
 						}
-						output.SaveResult(c.BundlePath, key, marshalErrors([]string{err.Error()}))
+						err = output.SaveResult(c.BundlePath, key, marshalErrors([]string{err.Error()}))
 						if err != nil {
 							return nil, err
 						}
@@ -80,10 +84,10 @@ func AllLogs(c *Collector, logsCollector *troubleshootv1beta2.AllLogs) (Collecto
 				}
 			} else {
 				for _, container := range logsCollector.ContainerNames {
-					containerLogs, err := saveNamespacedPodLogs(ctx, c.BundlePath, client, pod, logCollectorName, container, namespace, logsCollector.Limits, false)
+					containerLogs, err := saveNamespacedPodLogs(ctx, c.BundlePath, client, pod, logCollectorName, container, namespace, logsCollector.Limits)
 					if err != nil {
-						key := fmt.Sprintf("%s/%s/%s/%s-errors.json", namespace, logCollectorName, pod.Name, container)
-						output.SaveResult(c.BundlePath, key, marshalErrors([]string{err.Error()}))
+						key := fmt.Sprintf("%s/%s/%s/%s-errors.json", logCollectorName, namespace, pod.Name, container)
+						err = output.SaveResult(c.BundlePath, key, marshalErrors([]string{err.Error()}))
 						if err != nil {
 							return nil, err
 						}
@@ -140,13 +144,13 @@ func getAllLogsErrorsFileName(logsCollector *troubleshootv1beta2.AllLogs) string
 	} else if len(logsCollector.CollectorName) > 0 {
 		return fmt.Sprintf("%s/errors.json", logsCollector.CollectorName)
 	}
-	// TODO: random part
+
 	return "errors.json"
 }
 
-func saveNamespacedPodLogs(ctx context.Context, bundlePath string, client *kubernetes.Clientset, pod corev1.Pod, name, container, namespace string, limits *troubleshootv1beta2.LogLimits, follow bool) (CollectorResult, error) {
+func saveNamespacedPodLogs(ctx context.Context, bundlePath string, client *kubernetes.Clientset, pod corev1.Pod, name, container, namespace string, limits *troubleshootv1beta2.LogLimits) (CollectorResult, error) {
 	podLogOpts := corev1.PodLogOptions{
-		Follow:    follow,
+		Follow:    false,
 		Container: container,
 	}
 
