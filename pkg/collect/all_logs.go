@@ -35,92 +35,89 @@ func AllLogs(c *Collector, logsCollector *troubleshootv1beta2.AllLogs) (Collecto
 			output.SaveResult(c.BundlePath, getAllLogsErrorsFileName(logsCollector), marshalErrors(podsErrors))
 		}
 
-		if len(pods) > 0 {
-			for _, pod := range pods {
-				if len(logsCollector.ContainerNames) == 0 {
-					// make a list of all the containers in the pod, so that we can get logs from all of them
-					containerNames := []string{}
-					for _, container := range pod.Spec.Containers {
-						containerNames = append(containerNames, container.Name)
-					}
-					for _, container := range pod.Spec.InitContainers {
-						containerNames = append(containerNames, container.Name)
-					}
+		for _, pod := range pods {
+			if len(logsCollector.ContainerNames) == 0 {
+				// make a list of all the containers in the pod, so that we can get logs from all of them
+				containerNames := []string{}
+				for _, container := range pod.Spec.Containers {
+					containerNames = append(containerNames, container.Name)
+				}
+				for _, container := range pod.Spec.InitContainers {
+					containerNames = append(containerNames, container.Name)
+				}
 
-					for _, containerName := range containerNames {
-						if len(containerNames) == 1 {
-							containerName = "" // if there was only one container, use the old behavior of not including the container name in the path
-						}
-						podLogs, err := savePodLogs(ctx, c.BundlePath, client, pod, logsCollector.Name, containerName, logsCollector.Limits, false)
-						if err != nil {
-							key := fmt.Sprintf("%s/%s-errors.json", logsCollector.Name, pod.Name)
-							if containerName != "" {
-								key = fmt.Sprintf("%s/%s/%s-errors.json", logsCollector.Name, pod.Name, containerName)
-							}
-							output.SaveResult(c.BundlePath, key, marshalErrors([]string{err.Error()}))
-							if err != nil {
-								return nil, err
-							}
-							continue
-						}
-						for k, v := range podLogs {
-							output[k] = v
-						}
+				for _, containerName := range containerNames {
+					if len(containerNames) == 1 {
+						containerName = "" // if there was only one container, use the old behavior of not including the container name in the path
 					}
-				} else {
-					for _, container := range logsCollector.ContainerNames {
-						containerLogs, err := savePodLogs(ctx, c.BundlePath, client, pod, logsCollector.Name, container, logsCollector.Limits, false)
+					podLogs, err := savePodLogs(ctx, c.BundlePath, client, pod, logsCollector.Name, containerName, logsCollector.Limits, false)
+					if err != nil {
+						key := fmt.Sprintf("%s/%s-errors.json", logsCollector.Name, pod.Name)
+						if containerName != "" {
+							key = fmt.Sprintf("%s/%s/%s-errors.json", logsCollector.Name, pod.Name, containerName)
+						}
+						output.SaveResult(c.BundlePath, key, marshalErrors([]string{err.Error()}))
 						if err != nil {
-							key := fmt.Sprintf("%s/%s/%s-errors.json", logsCollector.Name, pod.Name, container)
-							output.SaveResult(c.BundlePath, key, marshalErrors([]string{err.Error()}))
-							if err != nil {
-								return nil, err
-							}
-							continue
+							return nil, err
 						}
-						for k, v := range containerLogs {
-							output[k] = v
+						continue
+					}
+					for k, v := range podLogs {
+						output[k] = v
+					}
+				}
+			} else {
+				for _, container := range logsCollector.ContainerNames {
+					containerLogs, err := savePodLogs(ctx, c.BundlePath, client, pod, logsCollector.Name, container, logsCollector.Limits, false)
+					if err != nil {
+						key := fmt.Sprintf("%s/%s/%s-errors.json", logsCollector.Name, pod.Name, container)
+						output.SaveResult(c.BundlePath, key, marshalErrors([]string{err.Error()}))
+						if err != nil {
+							return nil, err
 						}
+						continue
+					}
+					for k, v := range containerLogs {
+						output[k] = v
 					}
 				}
 			}
 		}
-
 	}
 
 	return output, nil
 }
 
-func listPodsInNamespace(ctx context.Context, client *kubernetes.Clientset, namespace string, selector []string) ([]corev1.Pod, []string) {
-	var pods *corev1.PodList
-	var err error
+func listPodsInNamespace(ctx context.Context, client *kubernetes.Clientset, namespace string, selector []string) ([]corev1.Pod, []error) {
+	var (
+		pods        *corev1.PodList
+		err         error
+		listOptions metav1.ListOptions
+	)
 	// Providing selectors is optional for AllPods collector.
-	if len(selector) == 0 {
-		pods, err = client.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{})
-		if err != nil {
-			return nil, []string{err.Error()}
-		}
-	} else {
+	if len(selector) != 0 {
 		serializedLabelSelector := strings.Join(selector, ",")
 
-		listOptions := metav1.ListOptions{
-			LabelSelector: serializedLabelSelector,
-		}
+		listOptions.LabelSelector = serializedLabelSelector
+	}
 
-		pods, err = client.CoreV1().Pods(namespace).List(ctx, listOptions)
-		if err != nil {
-			return nil, []string{err.Error()}
-		}
+	pods, err = client.CoreV1().Pods(namespace).List(ctx, listOptions)
+	if err != nil {
+		return nil, []error{err}
 	}
 
 	return pods.Items, nil
 }
+
 func getNamespaceNames(namespaceList *corev1.NamespaceList) []string {
 	var namespaceNames []string
-	if namespaceList != nil {
-		for _, namespace := range namespaceList.Items {
-			namespaceNames = append(namespaceNames, namespace.Name)
-		}
+
+	if namespaceList == nil {
+		return namespaceNames
+	}
+
+	for _, namespace := range namespaceList.Items {
+		namespaceNames = append(namespaceNames, namespace.Name)
 	}
 	return namespaceNames
 }
