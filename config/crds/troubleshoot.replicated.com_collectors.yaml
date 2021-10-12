@@ -228,6 +228,8 @@ spec:
                           items:
                             type: string
                           type: array
+                      required:
+                      - selector
                       type: object
                     allLogs:
                       properties:
@@ -257,8 +259,6 @@ spec:
                           items:
                             type: string
                           type: array
-                      required:
-                      - selector
                       type: object
                     mysql:
                       properties:
