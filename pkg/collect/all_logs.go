@@ -3,8 +3,10 @@ package collect
 import (
 	"context"
 	"fmt"
+	"io"
 	"strings"
 
+	"github.com/pkg/errors"
 	troubleshootv1beta2 "github.com/replicatedhq/troubleshoot/pkg/apis/troubleshoot/v1beta2"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -20,6 +22,16 @@ func AllLogs(c *Collector, logsCollector *troubleshootv1beta2.AllLogs) (Collecto
 	output := NewResult()
 
 	ctx := context.Background()
+
+	// Set default logCollector Name if empty
+	logCollectorName := ""
+
+	if logsCollector.Name == "" {
+		logCollectorName = "allPodLogs"
+	} else {
+		logCollectorName = logsCollector.Name
+	}
+
 	// If Namespaces list is empty, get all the namespaces
 	if len(logsCollector.Namespaces) == 0 || logsCollector.Namespaces[0] == "*" {
 		_, namespaceList, namespaceErrors := getAllNamespaces(ctx, client)
@@ -50,11 +62,11 @@ func AllLogs(c *Collector, logsCollector *troubleshootv1beta2.AllLogs) (Collecto
 					if len(containerNames) == 1 {
 						containerName = "" // if there was only one container, use the old behavior of not including the container name in the path
 					}
-					podLogs, err := savePodLogs(ctx, c.BundlePath, client, pod, logsCollector.Name, containerName, logsCollector.Limits, false)
+					podLogs, err := saveNamespacedPodLogs(ctx, c.BundlePath, client, pod, logCollectorName, containerName, namespace, logsCollector.Limits, false)
 					if err != nil {
-						key := fmt.Sprintf("%s/%s-errors.json", logsCollector.Name, pod.Name)
+						key := fmt.Sprintf("%s/%s/%s-errors.json", namespace, logCollectorName, pod.Name)
 						if containerName != "" {
-							key = fmt.Sprintf("%s/%s/%s-errors.json", logsCollector.Name, pod.Name, containerName)
+							key = fmt.Sprintf("%s/%s/%s/%s-errors.json", namespace, logCollectorName, pod.Name, containerName)
 						}
 						output.SaveResult(c.BundlePath, key, marshalErrors([]string{err.Error()}))
 						if err != nil {
@@ -68,9 +80,9 @@ func AllLogs(c *Collector, logsCollector *troubleshootv1beta2.AllLogs) (Collecto
 				}
 			} else {
 				for _, container := range logsCollector.ContainerNames {
-					containerLogs, err := savePodLogs(ctx, c.BundlePath, client, pod, logsCollector.Name, container, logsCollector.Limits, false)
+					containerLogs, err := saveNamespacedPodLogs(ctx, c.BundlePath, client, pod, logCollectorName, container, namespace, logsCollector.Limits, false)
 					if err != nil {
-						key := fmt.Sprintf("%s/%s/%s-errors.json", logsCollector.Name, pod.Name, container)
+						key := fmt.Sprintf("%s/%s/%s/%s-errors.json", namespace, logCollectorName, pod.Name, container)
 						output.SaveResult(c.BundlePath, key, marshalErrors([]string{err.Error()}))
 						if err != nil {
 							return nil, err
@@ -130,4 +142,60 @@ func getAllLogsErrorsFileName(logsCollector *troubleshootv1beta2.AllLogs) string
 	}
 	// TODO: random part
 	return "errors.json"
+}
+
+func saveNamespacedPodLogs(ctx context.Context, bundlePath string, client *kubernetes.Clientset, pod corev1.Pod, name, container, namespace string, limits *troubleshootv1beta2.LogLimits, follow bool) (CollectorResult, error) {
+	podLogOpts := corev1.PodLogOptions{
+		Follow:    follow,
+		Container: container,
+	}
+
+	setLogLimits(&podLogOpts, limits, convertMaxAgeToTime)
+
+	fileKey := fmt.Sprintf("%s/%s/%s", name, namespace, pod.Name)
+	if container != "" {
+		fileKey = fmt.Sprintf("%s/%s/%s/%s", name, namespace, pod.Name, container)
+	}
+
+	result := NewResult()
+
+	req := client.CoreV1().Pods(pod.Namespace).GetLogs(pod.Name, &podLogOpts)
+	podLogs, err := req.Stream(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get log stream")
+	}
+	defer podLogs.Close()
+
+	logWriter, err := result.GetWriter(bundlePath, fileKey+".log")
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get log writer")
+	}
+	defer result.CloseWriter(bundlePath, fileKey+".log", logWriter)
+
+	_, err = io.Copy(logWriter, podLogs)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to copy log")
+	}
+
+	podLogOpts.Previous = true
+	req = client.CoreV1().Pods(pod.Namespace).GetLogs(pod.Name, &podLogOpts)
+	podLogs, err = req.Stream(ctx)
+	if err != nil {
+		// maybe fail on !kuberneteserrors.IsNotFound(err)?
+		return result, nil
+	}
+	defer podLogs.Close()
+
+	prevLogWriter, err := result.GetWriter(bundlePath, fileKey+"-previous.log")
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get previous log writer")
+	}
+	defer result.CloseWriter(bundlePath, fileKey+"-previous.log", logWriter)
+
+	_, err = io.Copy(prevLogWriter, podLogs)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to copy previous log")
+	}
+
+	return result, nil
 }
