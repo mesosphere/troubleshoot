@@ -47,14 +47,16 @@ func AllLogs(c *Collector, logsCollector *troubleshootv1beta2.AllLogs) (Collecto
 		if len(podsErrors) > 0 {
 			err = output.SaveResult(c.BundlePath, getAllLogsErrorsFileName(logsCollector), marshalErrors(podsErrors))
 			if err != nil {
-				return nil, err
+				return output, err
 			}
 		}
 
 		for _, pod := range pods {
+
+			containerNames := logsCollector.ContainerNames
+			// If no containers are specified, make a list of all the containers in the pod
+			// and collect logs from all of them.
 			if len(logsCollector.ContainerNames) == 0 {
-				// make a list of all the containers in the pod, so that we can get logs from all of them
-				containerNames := []string{}
 				for _, container := range pod.Spec.Containers {
 					containerNames = append(containerNames, container.Name)
 				}
@@ -63,37 +65,16 @@ func AllLogs(c *Collector, logsCollector *troubleshootv1beta2.AllLogs) (Collecto
 				}
 
 				for _, containerName := range containerNames {
-					if len(containerNames) == 1 {
-						containerName = "" // if there was only one container, use the old behavior of not including the container name in the path
-					}
 					podLogs, err := saveNamespacedPodLogs(ctx, c.BundlePath, client, pod, logCollectorName, containerName, namespace, logsCollector.Limits)
 					if err != nil {
-						key := fmt.Sprintf("%s/%s/%s-errors.json", logCollectorName, namespace, pod.Name)
-						if containerName != "" {
-							key = fmt.Sprintf("%s/%s/%s/%s-errors.json", logCollectorName, namespace, pod.Name, containerName)
-						}
+						key := fmt.Sprintf("%s/%s/%s/%s-errors.json", logCollectorName, namespace, pod.Name, containerName)
 						err = output.SaveResult(c.BundlePath, key, marshalErrors([]string{err.Error()}))
 						if err != nil {
-							return nil, err
+							return output, err
 						}
 						continue
 					}
 					for k, v := range podLogs {
-						output[k] = v
-					}
-				}
-			} else {
-				for _, container := range logsCollector.ContainerNames {
-					containerLogs, err := saveNamespacedPodLogs(ctx, c.BundlePath, client, pod, logCollectorName, container, namespace, logsCollector.Limits)
-					if err != nil {
-						key := fmt.Sprintf("%s/%s/%s/%s-errors.json", logCollectorName, namespace, pod.Name, container)
-						err = output.SaveResult(c.BundlePath, key, marshalErrors([]string{err.Error()}))
-						if err != nil {
-							return nil, err
-						}
-						continue
-					}
-					for k, v := range containerLogs {
 						output[k] = v
 					}
 				}
@@ -148,6 +129,10 @@ func getAllLogsErrorsFileName(logsCollector *troubleshootv1beta2.AllLogs) string
 	return "errors.json"
 }
 
+func namespaceToString(namespaces []string) string {
+	return strings.Join(namespaces, "-")
+}
+
 func saveNamespacedPodLogs(ctx context.Context, bundlePath string, client *kubernetes.Clientset, pod corev1.Pod, name, container, namespace string, limits *troubleshootv1beta2.LogLimits) (CollectorResult, error) {
 	podLogOpts := corev1.PodLogOptions{
 		Follow:    false,
@@ -156,10 +141,7 @@ func saveNamespacedPodLogs(ctx context.Context, bundlePath string, client *kuber
 
 	setLogLimits(&podLogOpts, limits, convertMaxAgeToTime)
 
-	fileKey := fmt.Sprintf("%s/%s/%s", name, namespace, pod.Name)
-	if container != "" {
-		fileKey = fmt.Sprintf("%s/%s/%s/%s", name, namespace, pod.Name, container)
-	}
+	fileKey := fmt.Sprintf("%s/%s/%s-%s", name, namespace, pod.Name, container)
 
 	result := NewResult()
 
