@@ -85,6 +85,14 @@ func (c *Collector) IsExcluded() bool {
 		if isExcludedResult {
 			return true
 		}
+	} else if c.Collect.AllLogs != nil {
+		isExcludedResult, err := isExcluded(c.Collect.AllLogs.Exclude)
+		if err != nil {
+			return true
+		}
+		if isExcludedResult {
+			return true
+		}
 	} else if c.Collect.Run != nil {
 		isExcludedResult, err := isExcluded(c.Collect.Run.Exclude)
 		if err != nil {
@@ -210,6 +218,8 @@ func (c *Collector) RunCollectorSync(clientConfig *rest.Config, client kubernete
 		result, err = ConfigMap(ctx, c, c.Collect.ConfigMap, client)
 	} else if c.Collect.Logs != nil {
 		result, err = Logs(c, c.Collect.Logs)
+	} else if c.Collect.AllLogs != nil {
+		result, err = AllLogs(c, c.Collect.AllLogs)
 	} else if c.Collect.Run != nil {
 		result, err = Run(c, c.Collect.Run)
 	} else if c.Collect.Exec != nil {

@@ -103,3 +103,71 @@ Example of the data produced by running this collector:
 For more information about the configuration options see the
 `ExecCopyFromHost` in the `pkg/apis/troubleshoot/v1beta2/exec_copy_from_host.go`
 file.
+
+
+### `AllLogs` collector
+This is a new collector created specifically for gathering pod logs from provided
+namespaces(or from all namespaces if those are not specified).
+
+This allows to us to collect logs of all the pods from all the namespaces. 
+The pod logs are collected under `allPodLogs` directory.
+
+The data written into diagnostics bundle look like:
+
+```
+<collector-name> / <namespace-name> / <pod-name> - (container1|container2|...)
+```
+
+#### Example configuration
+
+To collect logs from all pods from all namespaces:
+
+```yaml
+spec:
+  collectors:
+    - allLogs:
+        namespaces:
+          - "*"
+```
+
+To collect logs from all pods from selective namespaces:
+
+```yaml
+spec:
+  collectors:
+    - allLogs:
+        namespaces:
+          - default
+          - dev
+          - prod
+```
+
+Example of the data produced by running first collector:
+
+```
+allPodLogs
+├── default
+│   ├── nginx-deploy-8588f9dfb-72vj8-nginx.log
+│   └── nginx-deploy-8588f9dfb-shndw-nginx.log
+├── dev
+│   ├── elastic-dev-es-default-0-elastic-internal-init-filesystem.log
+│   ├── elastic-dev-es-default-0-elasticsearch.log
+├── elastic-system
+│   ├── elastic-operator-0-manager.log
+│   └── elastic-operator-0-manager-previous.log
+├── kube-system
+│   ├── coredns-558bd4d5db-4znf9-coredns.log
+│   ├── coredns-558bd4d5db-xhv9l-coredns.log
+│   ├── etcd-kind-control-plane-etcd.log
+│   ├── kindnet-fcpjh-kindnet-cni.log
+│   ├── kube-apiserver-kind-control-plane-kube-apiserver.log
+│   ├── kube-controller-manager-kind-control-plane-kube-controller-manager.log
+│   ├── kube-proxy-7nqtq-kube-proxy.log
+│   ├── kube-proxy-7nqtq-kube-proxy-previous.log
+│   ├── kube-scheduler-kind-control-plane-kube-scheduler.log
+└── local-path-storage
+    └── local-path-provisioner-547f784dff-d7t5g-local-path-provisioner.log
+```
+
+For more information about the configuration options see `config/crds/troubleshoot.sh_collectors.yaml` & `pkg/collect/all_logs.go`
+files.
