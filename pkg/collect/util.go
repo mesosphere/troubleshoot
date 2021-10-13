@@ -87,10 +87,6 @@ func selectorToString(selector []string) string {
 	return strings.Replace(strings.Join(selector, "-"), "=", "-", -1)
 }
 
-func namespaceToString(namespaces []string) string {
-	return strings.Join(namespaces, "-")
-}
-
 func pathToString(path string) string {
 	return strings.Replace(path, "/", "-", -1)
 }

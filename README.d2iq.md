@@ -115,7 +115,7 @@ The pod logs are collected under `allPodLogs` directory.
 The data written into diagnostics bundle look like:
 
 ```
-<collector-name> / <namespace-name> / <pod-name> / (container1|container2|...)
+<collector-name> / <namespace-name> / <pod-name> - (container1|container2|...)
 ```
 
 #### Example configuration
@@ -147,26 +147,26 @@ Example of the data produced by running first collector:
 ```
 allPodLogs
 ├── default
-│   ├── nginx-deploy-8588f9dfb-5gz8w.log
-│   └── nginx-deploy-8588f9dfb-f8f2d.log
+│   ├── nginx-deploy-8588f9dfb-72vj8-nginx.log
+│   └── nginx-deploy-8588f9dfb-shndw-nginx.log
 ├── dev
-│   └── elastic-dev-es-default-0
-│       ├── elastic-internal-init-filesystem.log
-│       └── elasticsearch.log
+│   ├── elastic-dev-es-default-0-elastic-internal-init-filesystem.log
+│   ├── elastic-dev-es-default-0-elasticsearch.log
 ├── elastic-system
-│   ├── elastic-operator-0.log
-│   └── elastic-operator-0-previous.log
+│   ├── elastic-operator-0-manager.log
+│   └── elastic-operator-0-manager-previous.log
 ├── kube-system
-│   ├── coredns-558bd4d5db-4c42v.log
-│   ├── coredns-558bd4d5db-mstqq.log
-│   ├── etcd-kind-control-plane.log
-│   ├── kindnet-vsnpv.log
-│   ├── kube-apiserver-kind-control-plane.log
-│   ├── kube-controller-manager-kind-control-plane.log
-│   ├── kube-proxy-zmnf9.log
-│   └── kube-scheduler-kind-control-plane.log
+│   ├── coredns-558bd4d5db-4znf9-coredns.log
+│   ├── coredns-558bd4d5db-xhv9l-coredns.log
+│   ├── etcd-kind-control-plane-etcd.log
+│   ├── kindnet-fcpjh-kindnet-cni.log
+│   ├── kube-apiserver-kind-control-plane-kube-apiserver.log
+│   ├── kube-controller-manager-kind-control-plane-kube-controller-manager.log
+│   ├── kube-proxy-7nqtq-kube-proxy.log
+│   ├── kube-proxy-7nqtq-kube-proxy-previous.log
+│   ├── kube-scheduler-kind-control-plane-kube-scheduler.log
 └── local-path-storage
-    └── local-path-provisioner-547f784dff-7czb6.log
+    └── local-path-provisioner-547f784dff-d7t5g-local-path-provisioner.log
 ```
 
 For more information about the configuration options see `config/crds/troubleshoot.sh_collectors.yaml` & `pkg/collect/all_logs.go`
