@@ -63,20 +63,19 @@ func AllLogs(c *Collector, logsCollector *troubleshootv1beta2.AllLogs) (Collecto
 				for _, container := range pod.Spec.InitContainers {
 					containerNames = append(containerNames, container.Name)
 				}
-
-				for _, containerName := range containerNames {
-					podLogs, err := saveNamespacedPodLogs(ctx, c.BundlePath, client, pod, logCollectorName, containerName, namespace, logsCollector.Limits)
+			}
+			for _, containerName := range containerNames {
+				podLogs, err := saveNamespacedPodLogs(ctx, c.BundlePath, client, pod, logCollectorName, containerName, namespace, logsCollector.Limits)
+				if err != nil {
+					key := fmt.Sprintf("%s/%s/%s/%s-errors.json", logCollectorName, namespace, pod.Name, containerName)
+					err = output.SaveResult(c.BundlePath, key, marshalErrors([]string{err.Error()}))
 					if err != nil {
-						key := fmt.Sprintf("%s/%s/%s/%s-errors.json", logCollectorName, namespace, pod.Name, containerName)
-						err = output.SaveResult(c.BundlePath, key, marshalErrors([]string{err.Error()}))
-						if err != nil {
-							return output, err
-						}
-						continue
+						return output, err
 					}
-					for k, v := range podLogs {
-						output[k] = v
-					}
+					continue
+				}
+				for k, v := range podLogs {
+					output[k] = v
 				}
 			}
 		}
