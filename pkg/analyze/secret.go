@@ -9,14 +9,7 @@ import (
 )
 
 func analyzeSecret(analyzer *troubleshootv1beta2.AnalyzeSecret, getCollectedFileContents func(string) ([]byte, error)) (*AnalyzeResult, error) {
-	filename := collect.GetSecretFileName(
-		&troubleshootv1beta2.Secret{
-			Namespace: analyzer.Namespace,
-			Name:      analyzer.SecretName,
-			Key:       analyzer.Key,
-		},
-		analyzer.SecretName,
-	)
+	filename := collect.GetSecretFileName(analyzer.Namespace, analyzer.SecretName, analyzer.Key)
 
 	secretData, err := getCollectedFileContents(filename)
 	if err != nil {
