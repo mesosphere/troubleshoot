@@ -172,7 +172,7 @@ allPodLogs
 For more information about the configuration options see `config/crds/troubleshoot.sh_collectors.yaml` & `pkg/collect/all_logs.go`
 files.
 
-### Support for collecting from all namespaces for `ConfigMap` collector
+### Support for collecting from all namespaces for `ConfigMap` and `Secret` collector
 
-In the original collector `namespace` is a required parameter. This adds support for collecting from all namespaces by not setting the `namespace` (or setting it to `""`).
-Note: To collect all config maps an empty selector must be used (`selector: [""]`).
+In the original collectors `namespace` is a required parameter. This adds support for collecting from all namespaces by not setting the `namespace` (or setting it to `""`).
+Note: To collect all config maps / secrets an empty selector must be used (`selector: [""]`).
