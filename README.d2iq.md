@@ -176,3 +176,7 @@ files.
 
 In the original collectors `namespace` is a required parameter. This adds support for collecting from all namespaces by not setting the `namespace` (or setting it to `""`).
 Note: To collect all config maps / secrets an empty selector must be used (`selector: [""]`).
+
+### Support for optional support-bundle name prefix
+
+When generating a support bundle, it is useful to allow for providing naming defaults for providing deterministic bundle identifiers. This feature is especially useful for our convenience extension of providing diagnostics for both, a bootstrap- as well as a Konvoy or other K8s cluster. An empty prefix means nothing changes and the original naming is kept.
