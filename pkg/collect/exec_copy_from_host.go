@@ -3,6 +3,9 @@ package collect
 import (
 	"bytes"
 	"context"
+	"encoding/json"
+	"fmt"
+	"io"
 	"path/filepath"
 	"time"
 
@@ -329,30 +332,62 @@ func execCopyFromHostGetFilesFromPods(
 	if err != nil {
 		return nil, errors.Wrap(err, "list pods")
 	}
-	podNames := []string{}
-	for _, pod := range pods.Items {
-		podNames = append(podNames, pod.Name)
+
+	clientSet, err := kubernetes.NewForConfig(c.ClientConfig)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create k8s clientset")
 	}
 
 	output := NewResult()
 	for _, pod := range pods.Items {
+
 		outputNodePath := filepath.Join(outputPath, pod.Spec.NodeName)
-		files, stderr, err := copyFilesFromHost(
-			ctx,
-			outputNodePath,
-			clientConfig,
-			client,
-			pod.Name,
-			"pause",
-			namespace,
-			"/data",
-			collector.ExtractArchive,
+		files, stderr, err := copyFilesFromPod(
+			ctx, filepath.Join(c.BundlePath, outputNodePath), clientConfig,
+			client, pod.Name, "pause", namespace, "/data", collector.ExtractArchive,
 		)
 
 		if err != nil {
-			output.SaveResult(c.BundlePath, filepath.Join(outputNodePath, "error.txt"), bytes.NewBuffer([]byte(err.Error())))
+
+			// Save error message from the copy operation
+			msg := fmt.Sprintf("failed to copy data from the pod container pause: %s", err.Error())
+			output.SaveResult(c.BundlePath, filepath.Join(outputNodePath, "file-copy-error.txt"), bytes.NewReader([]byte(msg)))
 			if len(stderr) > 0 {
 				output.SaveResult(c.BundlePath, filepath.Join(outputNodePath, "stderr.txt"), bytes.NewBuffer(stderr))
+			}
+
+			// Save pod status
+			podJson, err := json.MarshalIndent(pod, "", "  ")
+			if err != nil {
+				output.SaveResult(c.BundlePath, filepath.Join(outputNodePath, "pod-collector-marshall-error.txt"), bytes.NewReader([]byte(err.Error())))
+			} else {
+				output.SaveResult(c.BundlePath, filepath.Join(outputNodePath, "pod-collector.json"), bytes.NewReader(podJson))
+			}
+
+			// Attempt to get a stdout and data from the collector initcontainer
+			for _, initContainer := range pod.Spec.InitContainers {
+				logPath := filepath.Join(outputNodePath, fmt.Sprintf("pod-%s", initContainer.Name))
+				copyContainerLogsResult, copyErr := copyContainerLogs(ctx, c.BundlePath, clientSet, pod, initContainer.Name, logPath, false)
+				if copyErr != nil {
+					output.SaveResult(c.BundlePath, fmt.Sprintf("%s-log-copy-error.txt", logPath), bytes.NewReader([]byte(copyErr.Error())))
+				} else {
+					copyResultsToOutput(output, copyContainerLogsResult)
+				}
+
+				filesCopiedFromCollector, _, err := copyFilesFromPod(
+					ctx, filepath.Join(c.BundlePath, outputNodePath), clientConfig,
+					client, pod.Name, initContainer.Name, namespace, execCopyFromHostSharedVolumePath, collector.ExtractArchive,
+				)
+				if err != nil {
+					output.SaveResult(c.BundlePath, fmt.Sprintf("%s-files-copy-error.txt", logPath), bytes.NewReader([]byte(err.Error())))
+				} else {
+					for k, v := range filesCopiedFromCollector {
+						relPath, err := filepath.Rel(c.BundlePath, filepath.Join(c.BundlePath, filepath.Join(outputNodePath, k)))
+						if err == nil {
+							output[relPath] = v
+						}
+					}
+				}
 			}
 		}
 
@@ -366,4 +401,47 @@ func execCopyFromHostGetFilesFromPods(
 	}
 
 	return output, nil
+}
+
+func copyResultsToOutput(dst, src CollectorResult) {
+	for k, v := range src {
+		dst[k] = v
+	}
+}
+
+func copyContainerLogs(
+	ctx context.Context,
+	bundlePath string,
+	client *kubernetes.Clientset,
+	pod corev1.Pod,
+	container string,
+	logPath string,
+	previous bool,
+) (CollectorResult, error) {
+	podLogOpts := corev1.PodLogOptions{
+		Container: container,
+		Follow:    false,
+		Previous:  previous,
+	}
+	result := NewResult()
+
+	req := client.CoreV1().Pods(pod.Namespace).GetLogs(pod.Name, &podLogOpts)
+	podLogs, err := req.Stream(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get log stream")
+	}
+	defer podLogs.Close()
+
+	logWriter, err := result.GetWriter(bundlePath, logPath+".log")
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get log writer")
+	}
+	defer result.CloseWriter(bundlePath, logPath+".log", logWriter)
+
+	_, err = io.Copy(logWriter, podLogs)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to copy log")
+	}
+
+	return result, nil
 }
