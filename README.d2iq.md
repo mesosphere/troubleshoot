@@ -100,6 +100,8 @@ Example of the data produced by running this collector:
 │           └── whoami_validate
 ```
 
+In case of any errors while collecting the node diagnostics, `node-diagnostics/<node>/pod-collector.json` contains serialized JSON representation of running pod which can help debug why collection has failed. `node-diagnostics/<node>/pod-collector.log` file contains stdout from the collector container that runs diagnostics script.
+
 For more information about the configuration options see the
 `ExecCopyFromHost` in the `pkg/apis/troubleshoot/v1beta2/exec_copy_from_host.go`
 file.
