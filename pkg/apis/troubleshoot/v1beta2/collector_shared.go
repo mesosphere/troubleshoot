@@ -469,6 +469,11 @@ func (c *Collect) GetName() string {
 		name = c.Logs.CollectorName
 		selector = strings.Join(c.Logs.Selector, ",")
 	}
+	if c.AllLogs != nil {
+		collector = "all-logs"
+		name = c.AllLogs.CollectorName
+		selector = strings.Join(c.AllLogs.Selector, ",")
+	}
 	if c.Run != nil {
 		collector = "run"
 		name = c.Run.CollectorName
@@ -502,6 +507,10 @@ func (c *Collect) GetName() string {
 	if c.Ceph != nil {
 		collector = "ceph"
 		name = c.Ceph.CollectorName
+	}
+	if c.ExecCopyFromHost != nil {
+		collector = "exec-copy-from-host"
+		name = c.ExecCopyFromHost.CollectorName
 	}
 	if c.Longhorn != nil {
 		collector = "longhorn"
