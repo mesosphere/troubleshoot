@@ -350,7 +350,7 @@ func execCopyFromHostGetFilesFromPods(
 		if err != nil {
 
 			// Save error message from the copy operation
-			msg := fmt.Sprintf("failed to copy data from the pod container pause: %s", err.Error())
+			msg := fmt.Sprintf("[%s] failed to copy data from the pod container pause: %s", time.Now().String(), err.Error())
 			output.SaveResult(c.BundlePath, filepath.Join(outputNodePath, "file-copy-error.txt"), bytes.NewReader([]byte(msg)))
 			if len(stderr) > 0 {
 				output.SaveResult(c.BundlePath, filepath.Join(outputNodePath, "stderr.txt"), bytes.NewBuffer(stderr))
@@ -379,7 +379,8 @@ func execCopyFromHostGetFilesFromPods(
 					client, pod.Name, initContainer.Name, namespace, execCopyFromHostSharedVolumePath, collector.ExtractArchive,
 				)
 				if err != nil {
-					output.SaveResult(c.BundlePath, fmt.Sprintf("%s-files-copy-error.txt", logPath), bytes.NewReader([]byte(err.Error())))
+					timestampedErr := fmt.Sprintf("[%s] %s", time.Now().String(), err.Error())
+					output.SaveResult(c.BundlePath, fmt.Sprintf("%s-files-copy-error.txt", logPath), bytes.NewReader([]byte(timestampedErr)))
 				} else {
 					for k, v := range filesCopiedFromCollector {
 						relPath, err := filepath.Rel(c.BundlePath, filepath.Join(c.BundlePath, filepath.Join(outputNodePath, k)))
