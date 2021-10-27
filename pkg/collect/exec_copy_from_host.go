@@ -359,7 +359,8 @@ func execCopyFromHostGetFilesFromPods(
 			// Save pod status
 			podJson, err := json.MarshalIndent(pod, "", "  ")
 			if err != nil {
-				output.SaveResult(c.BundlePath, filepath.Join(outputNodePath, "pod-collector-marshall-error.txt"), bytes.NewReader([]byte(err.Error())))
+				timestampedErr := fmt.Sprintf("[%s] %s", time.Now().String(), err.Error())
+				output.SaveResult(c.BundlePath, filepath.Join(outputNodePath, "pod-collector-marshall-error.txt"), bytes.NewReader([]byte(timestampedErr)))
 			} else {
 				output.SaveResult(c.BundlePath, filepath.Join(outputNodePath, "pod-collector.json"), bytes.NewReader(podJson))
 			}
@@ -369,7 +370,8 @@ func execCopyFromHostGetFilesFromPods(
 				logPath := filepath.Join(outputNodePath, fmt.Sprintf("pod-%s", initContainer.Name))
 				copyContainerLogsResult, copyErr := copyContainerLogs(ctx, c.BundlePath, clientSet, pod, initContainer.Name, logPath, false)
 				if copyErr != nil {
-					output.SaveResult(c.BundlePath, fmt.Sprintf("%s-log-copy-error.txt", logPath), bytes.NewReader([]byte(copyErr.Error())))
+					timestampedCopyErr := fmt.Sprintf("[%s] %s", time.Now().String(), copyErr.Error())
+					output.SaveResult(c.BundlePath, fmt.Sprintf("%s-log-copy-error.txt", logPath), bytes.NewReader([]byte(timestampedCopyErr)))
 				} else {
 					copyResultsToOutput(output, copyContainerLogsResult)
 				}
