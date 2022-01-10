@@ -181,8 +181,8 @@ func runTroubleshoot(v *viper.Viper, arg string) error {
 		Namespace:                 v.GetString("namespace"),
 		ProgressChan:              progressChan,
 		SinceTime:                 sinceTime,
+		Redact:                    v.GetBool("redact"),
 		FromCLI:                   true,
-		Redact:                    true,
 	}
 
 	nonInteractiveOutput := analysisOutput{}
