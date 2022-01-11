@@ -44,8 +44,6 @@ require (
 	sigs.k8s.io/controller-runtime v0.11.0
 )
 
-require k8s.io/utils v0.0.0-20210819203725-bdf08cb9a70a
-
 require (
 	cloud.google.com/go v0.93.3 // indirect
 	cloud.google.com/go/storage v1.10.0 // indirect
