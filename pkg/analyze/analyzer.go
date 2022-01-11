@@ -7,6 +7,7 @@ import (
 	"github.com/pkg/errors"
 	troubleshootv1beta2 "github.com/replicatedhq/troubleshoot/pkg/apis/troubleshoot/v1beta2"
 	"github.com/replicatedhq/troubleshoot/pkg/multitype"
+	corev1 "k8s.io/api/core/v1"
 )
 
 type AnalyzeResult struct {
@@ -19,6 +20,8 @@ type AnalyzeResult struct {
 	URI     string
 	IconKey string
 	IconURI string
+
+	InvolvedObject *corev1.ObjectReference
 }
 
 type getCollectedFileContents func(string) ([]byte, error)
@@ -185,11 +188,11 @@ func Analyze(analyzer *troubleshootv1beta2.Analyze, getFile getCollectedFileCont
 		if isExcluded {
 			return nil, nil
 		}
-		result, err := analyzeDeploymentStatus(analyzer.DeploymentStatus, getFile)
+		results, err := analyzeDeploymentStatus(analyzer.DeploymentStatus, findFiles)
 		if err != nil {
 			return nil, err
 		}
-		return []*AnalyzeResult{result}, nil
+		return results, nil
 	}
 	if analyzer.StatefulsetStatus != nil {
 		isExcluded, err := isExcluded(analyzer.StatefulsetStatus.Exclude)
@@ -199,11 +202,53 @@ func Analyze(analyzer *troubleshootv1beta2.Analyze, getFile getCollectedFileCont
 		if isExcluded {
 			return nil, nil
 		}
-		result, err := analyzeStatefulsetStatus(analyzer.StatefulsetStatus, getFile)
+		results, err := analyzeStatefulsetStatus(analyzer.StatefulsetStatus, findFiles)
 		if err != nil {
 			return nil, err
 		}
-		return []*AnalyzeResult{result}, nil
+		return results, nil
+	}
+	if analyzer.JobStatus != nil {
+		isExcluded, err := isExcluded(analyzer.JobStatus.Exclude)
+		if err != nil {
+			return nil, err
+		}
+		if isExcluded {
+			return nil, nil
+		}
+		results, err := analyzeJobStatus(analyzer.JobStatus, findFiles)
+		if err != nil {
+			return nil, err
+		}
+		return results, nil
+	}
+	if analyzer.ReplicaSetStatus != nil {
+		isExcluded, err := isExcluded(analyzer.ReplicaSetStatus.Exclude)
+		if err != nil {
+			return nil, err
+		}
+		if isExcluded {
+			return nil, nil
+		}
+		results, err := analyzeReplicaSetStatus(analyzer.ReplicaSetStatus, findFiles)
+		if err != nil {
+			return nil, err
+		}
+		return results, nil
+	}
+	if analyzer.ClusterPodStatuses != nil {
+		isExcluded, err := isExcluded(analyzer.ClusterPodStatuses.Exclude)
+		if err != nil {
+			return nil, err
+		}
+		if isExcluded {
+			return nil, nil
+		}
+		results, err := clusterPodStatuses(analyzer.ClusterPodStatuses, findFiles)
+		if err != nil {
+			return nil, err
+		}
+		return results, nil
 	}
 	if analyzer.ContainerRuntime != nil {
 		isExcluded, err := isExcluded(analyzer.ContainerRuntime.Exclude)

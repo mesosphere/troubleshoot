@@ -7,9 +7,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"path" // this code uses 'path' and not 'path/filepath' because we don't want backslashes on windows
+	"path/filepath"
 	"strings"
 
 	troubleshootv1beta2 "github.com/replicatedhq/troubleshoot/pkg/apis/troubleshoot/v1beta2"
+	"github.com/replicatedhq/troubleshoot/pkg/k8sutil"
 	"gopkg.in/yaml.v2"
 	authorizationv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -66,11 +68,32 @@ func ClusterResources(c *Collector, clusterResourcesCollector *troubleshootv1bet
 	}
 
 	// pods
-	pods, podErrors := pods(ctx, client, namespaceNames)
+	pods, podErrors, unhealthyPods := pods(ctx, client, namespaceNames)
 	for k, v := range pods {
 		output.SaveResult(c.BundlePath, path.Join("cluster-resources/pods", k), bytes.NewBuffer(v))
 	}
 	output.SaveResult(c.BundlePath, "cluster-resources/pods-errors.json", marshalErrors(podErrors))
+
+	for _, pod := range unhealthyPods {
+		allContainers := append(pod.Spec.InitContainers, pod.Spec.Containers...)
+		for _, container := range allContainers {
+			logsRoot := ""
+			if c.BundlePath != "" {
+				logsRoot = path.Join(c.BundlePath, "cluster-resources", "pods", "logs", pod.Namespace)
+			}
+			limits := &troubleshootv1beta2.LogLimits{
+				MaxLines: 500,
+			}
+			podLogs, err := savePodLogs(ctx, logsRoot, client, pod, "", container.Name, limits, false)
+			if err != nil {
+				errPath := filepath.Join("cluster-resources", "pods", "logs", pod.Namespace, pod.Name, fmt.Sprintf("%s-logs-errors.log", container.Name))
+				output.SaveResult(c.BundlePath, errPath, bytes.NewBuffer([]byte(err.Error())))
+			}
+			for k, v := range podLogs {
+				output[filepath.Join("cluster-resources", "pods", "logs", pod.Namespace, k)] = v
+			}
+		}
+	}
 
 	// services
 	services, servicesErrors := services(ctx, client, namespaceNames)
@@ -92,6 +115,13 @@ func ClusterResources(c *Collector, clusterResourcesCollector *troubleshootv1bet
 		output.SaveResult(c.BundlePath, path.Join("cluster-resources/statefulsets", k), bytes.NewBuffer(v))
 	}
 	output.SaveResult(c.BundlePath, "cluster-resources/statefulsets-errors.json", marshalErrors(statefulsetsErrors))
+
+	// replicasets
+	replicasets, replicasetsErrors := replicasets(ctx, client, namespaceNames)
+	for k, v := range replicasets {
+		output.SaveResult(c.BundlePath, path.Join("cluster-resources/replicasets", k), bytes.NewBuffer(v))
+	}
+	output.SaveResult(c.BundlePath, "cluster-resources/replicasets-errors.json", marshalErrors(replicasetsErrors))
 
 	// jobs
 	jobs, jobsErrors := jobs(ctx, client, namespaceNames)
@@ -234,9 +264,10 @@ func getNamespace(ctx context.Context, client *kubernetes.Clientset, namespace s
 	return b, nil
 }
 
-func pods(ctx context.Context, client *kubernetes.Clientset, namespaces []string) (map[string][]byte, map[string]string) {
+func pods(ctx context.Context, client *kubernetes.Clientset, namespaces []string) (map[string][]byte, map[string]string, []corev1.Pod) {
 	podsByNamespace := make(map[string][]byte)
 	errorsByNamespace := make(map[string]string)
+	unhealthyPods := []corev1.Pod{}
 
 	for _, namespace := range namespaces {
 		pods, err := client.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{})
@@ -251,10 +282,16 @@ func pods(ctx context.Context, client *kubernetes.Clientset, namespaces []string
 			continue
 		}
 
+		for _, pod := range pods.Items {
+			if k8sutil.IsPodUnhealthy(&pod) {
+				unhealthyPods = append(unhealthyPods, pod)
+			}
+		}
+
 		podsByNamespace[namespace+".json"] = b
 	}
 
-	return podsByNamespace, errorsByNamespace
+	return podsByNamespace, errorsByNamespace, unhealthyPods
 }
 
 func services(ctx context.Context, client *kubernetes.Clientset, namespaces []string) (map[string][]byte, map[string]string) {
@@ -324,6 +361,29 @@ func statefulsets(ctx context.Context, client *kubernetes.Clientset, namespaces 
 	}
 
 	return statefulsetsByNamespace, errorsByNamespace
+}
+
+func replicasets(ctx context.Context, client *kubernetes.Clientset, namespaces []string) (map[string][]byte, map[string]string) {
+	replicasetsByNamespace := make(map[string][]byte)
+	errorsByNamespace := make(map[string]string)
+
+	for _, namespace := range namespaces {
+		replicasets, err := client.AppsV1().ReplicaSets(namespace).List(ctx, metav1.ListOptions{})
+		if err != nil {
+			errorsByNamespace[namespace] = err.Error()
+			continue
+		}
+
+		b, err := json.MarshalIndent(replicasets.Items, "", "  ")
+		if err != nil {
+			errorsByNamespace[namespace] = err.Error()
+			continue
+		}
+
+		replicasetsByNamespace[namespace+".json"] = b
+	}
+
+	return replicasetsByNamespace, errorsByNamespace
 }
 
 func jobs(ctx context.Context, client *kubernetes.Clientset, namespaces []string) (map[string][]byte, map[string]string) {

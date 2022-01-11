@@ -8,20 +8,20 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func Test_deploymentStatus(t *testing.T) {
+func Test_JobStatus(t *testing.T) {
 	tests := []struct {
 		name         string
-		analyzer     troubleshootv1beta2.DeploymentStatus
+		analyzer     troubleshootv1beta2.JobStatus
 		expectResult []*AnalyzeResult
 		files        map[string][]byte
 	}{
 		{
 			name: "1/1, pass when = 1",
-			analyzer: troubleshootv1beta2.DeploymentStatus{
+			analyzer: troubleshootv1beta2.JobStatus{
 				Outcomes: []*troubleshootv1beta2.Outcome{
 					{
 						Pass: &troubleshootv1beta2.SingleOutcome{
-							When:    "= 1",
+							When:    "succeeded == 1",
 							Message: "pass",
 						},
 					},
@@ -31,96 +31,96 @@ func Test_deploymentStatus(t *testing.T) {
 						},
 					},
 				},
-				Namespace: "default",
-				Name:      "kotsadm-api",
+				Namespace: "test",
+				Name:      "pre-install-job",
 			},
 			expectResult: []*AnalyzeResult{
 				{
 					IsPass:  true,
 					IsWarn:  false,
 					IsFail:  false,
-					Title:   "kotsadm-api Status",
+					Title:   "pre-install-job Status",
 					Message: "pass",
 					IconKey: "kubernetes_deployment_status",
 					IconURI: "https://troubleshoot.sh/images/analyzer-icons/deployment-status.svg?w=17&h=17",
 				},
 			},
 			files: map[string][]byte{
-				"cluster-resources/deployments/default.json": []byte(collectedDeployments),
+				"cluster-resources/jobs/test.json": []byte(collectedJobs),
 			},
 		},
 		{
-			name: "1/1, pass when = 2",
-			analyzer: troubleshootv1beta2.DeploymentStatus{
+			name: "1/1, fail when < 2",
+			analyzer: troubleshootv1beta2.JobStatus{
 				Outcomes: []*troubleshootv1beta2.Outcome{
 					{
-						Pass: &troubleshootv1beta2.SingleOutcome{
-							When:    "= 2",
-							Message: "pass",
-						},
-					},
-					{
 						Fail: &troubleshootv1beta2.SingleOutcome{
+							When:    "succeeded < 2",
 							Message: "fail",
 						},
 					},
+					{
+						Pass: &troubleshootv1beta2.SingleOutcome{
+							Message: "pass",
+						},
+					},
 				},
-				Namespace: "default",
-				Name:      "kotsadm-api",
+				Namespace: "test",
+				Name:      "pre-install-job",
 			},
 			expectResult: []*AnalyzeResult{
 				{
 					IsPass:  false,
 					IsWarn:  false,
 					IsFail:  true,
-					Title:   "kotsadm-api Status",
+					Title:   "pre-install-job Status",
 					Message: "fail",
 					IconKey: "kubernetes_deployment_status",
 					IconURI: "https://troubleshoot.sh/images/analyzer-icons/deployment-status.svg?w=17&h=17",
 				},
 			},
 			files: map[string][]byte{
-				"cluster-resources/deployments/default.json": []byte(collectedDeployments),
+				"cluster-resources/jobs/test.json": []byte(collectedJobs),
 			},
 		},
 		{
-			name: "1/1, pass when >= 2, warn when = 1, fail when 0",
-			analyzer: troubleshootv1beta2.DeploymentStatus{
+			name: "1/1, fail when failed > 0",
+			analyzer: troubleshootv1beta2.JobStatus{
 				Outcomes: []*troubleshootv1beta2.Outcome{
 					{
 						Pass: &troubleshootv1beta2.SingleOutcome{
-							When:    ">= 2",
+							When:    "succeeded = 1",
 							Message: "pass",
 						},
 					},
 					{
-						Warn: &troubleshootv1beta2.SingleOutcome{
-							When:    "= 1",
-							Message: "warn",
+						Fail: &troubleshootv1beta2.SingleOutcome{
+							When:    "failed > 0",
+							Message: "fail",
 						},
 					},
 					{
 						Fail: &troubleshootv1beta2.SingleOutcome{
-							Message: "fail",
+							Message: "default fail",
 						},
 					},
 				},
-				Namespace: "default",
-				Name:      "kotsadm-api",
+				Namespace: "test",
+				Name:      "post-install-job",
 			},
 			expectResult: []*AnalyzeResult{
 				{
 					IsPass:  false,
-					IsWarn:  true,
-					IsFail:  false,
-					Title:   "kotsadm-api Status",
-					Message: "warn",
+					IsWarn:  false,
+					IsFail:  true,
+					Title:   "post-install-job Status",
+					Message: "fail",
 					IconKey: "kubernetes_deployment_status",
 					IconURI: "https://troubleshoot.sh/images/analyzer-icons/deployment-status.svg?w=17&h=17",
 				},
 			},
 			files: map[string][]byte{
-				"cluster-resources/deployments/default.json": []byte(collectedDeployments),
+				"cluster-resources/jobs/test.json": []byte(collectedJobs),
 			},
 		},
 	}
@@ -133,7 +133,7 @@ func Test_deploymentStatus(t *testing.T) {
 				return test.files, nil
 			}
 
-			actual, err := analyzeDeploymentStatus(&test.analyzer, getFiles)
+			actual, err := analyzeJobStatus(&test.analyzer, getFiles)
 			req.NoError(err)
 
 			assert.Equal(t, test.expectResult, actual)

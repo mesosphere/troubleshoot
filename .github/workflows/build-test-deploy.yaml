@@ -56,7 +56,32 @@ jobs:
           path: bin/
       - uses: engineerd/setup-kind@v0.5.0
       - run: chmod +x bin/preflight
-      - run: ./bin/preflight --interactive=false --format=json https://preflight.replicated.com
+      - run: |
+          ./bin/preflight --interactive=false --format=json https://preflight.replicated.com > result.json
+          cat result.json
+
+          EXIT_STATUS=0
+          if grep -q "was not collected" result.json; then
+            echo "Some files were not collected"
+            EXIT_STATUS=1
+          fi
+
+          if (( `jq '.pass | length' result.json` < 1 )); then
+            echo "No passing preflights found"
+            EXIT_STATUS=1
+          fi
+
+          if (( `jq '.warn | length' result.json` < 1 )); then
+            echo "No warnings found"
+            EXIT_STATUS=1
+          fi
+
+          if (( `jq '.fail | length' result.json` < 1 )); then
+            echo "No failed preflights found"
+            EXIT_STATUS=1
+          fi
+
+          exit $EXIT_STATUS
 
   compile-supportbundle:
     runs-on: ubuntu-latest
@@ -92,6 +117,26 @@ jobs:
       - run: ./bin/support-bundle ./examples/support-bundle/sample-collectors.yaml
       - run: ./bin/support-bundle ./examples/support-bundle/sample-supportbundle.yaml
       - run: ./bin/support-bundle https://kots.io
+
+  goreleaser-test:
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v') != true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+  
+      - name: Unshallow
+        run: git fetch --prune --unshallow
+  
+      - uses: actions/setup-go@v1
+        with:
+          go-version: "1.17"
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v2
+        with:
+          version: "v0.183.0"
+          args: build --rm-dist --snapshot --config deploy/.goreleaser.yaml
 
   goreleaser:
     runs-on: ubuntu-latest
@@ -134,7 +179,7 @@ jobs:
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v2
         with:
-          version: latest
+          version: "v0.183.0"
           args: release --rm-dist --config deploy/.goreleaser.yaml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
