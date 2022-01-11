@@ -10,6 +10,7 @@ import (
 	"github.com/pkg/errors"
 	troubleshootv1beta2 "github.com/replicatedhq/troubleshoot/pkg/apis/troubleshoot/v1beta2"
 	appsv1 "k8s.io/api/apps/v1"
+	"k8s.io/apimachinery/pkg/labels"
 )
 
 func analyzeReplicaSetStatus(analyzer *troubleshootv1beta2.ReplicaSetStatus, getFileContents func(string) (map[string][]byte, error)) ([]*AnalyzeResult, error) {
@@ -50,11 +51,13 @@ func analyzeOneReplicaSetStatus(analyzer *troubleshootv1beta2.ReplicaSetStatus, 
 				IsFail:  true,
 				Message: fmt.Sprintf("The replicaset %q was not found", analyzer.Name),
 			}
-		} else {
+		} else if len(analyzer.Outcomes) > 0 {
 			result, err = replicasetStatus(analyzer.Outcomes, replicaset)
 			if err != nil {
 				return nil, errors.Wrap(err, "failed to process status")
 			}
+		} else {
+			result = getDefaultReplicaSetResult(replicaset)
 		}
 	}
 
@@ -74,6 +77,11 @@ func analyzeAllReplicaSetStatuses(analyzer *troubleshootv1beta2.ReplicaSetStatus
 		return nil, errors.Wrap(err, "failed to read collected replicaset from file")
 	}
 
+	labelSelector, err := labels.Parse(strings.Join(analyzer.Selector, ","))
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to parse selector")
+	}
+
 	results := []*AnalyzeResult{}
 	for _, collected := range files {
 		var replicasets []appsv1.ReplicaSet
@@ -82,23 +90,23 @@ func analyzeAllReplicaSetStatuses(analyzer *troubleshootv1beta2.ReplicaSetStatus
 		}
 
 		for _, replicaset := range replicasets {
-			if replicaset.Spec.Replicas == nil && replicaset.Status.AvailableReplicas == 1 { // default is 1
+			if !labelSelector.Matches(labels.Set(replicaset.Labels)) {
 				continue
 			}
 
-			if replicaset.Spec.Replicas != nil && *replicaset.Spec.Replicas == replicaset.Status.AvailableReplicas {
-				continue
+			var result *AnalyzeResult
+			if len(analyzer.Outcomes) > 0 {
+				result, err = replicasetStatus(analyzer.Outcomes, &replicaset)
+				if err != nil {
+					return nil, errors.Wrap(err, "failed to process status")
+				}
+			} else {
+				result = getDefaultReplicaSetResult(&replicaset)
 			}
 
-			result := &AnalyzeResult{
-				Title:   fmt.Sprintf("%s/%s ReplicaSet Status", replicaset.Namespace, replicaset.Name),
-				IconKey: "kubernetes_deployment_status",                                                  // TODO: need new icon
-				IconURI: "https://troubleshoot.sh/images/analyzer-icons/deployment-status.svg?w=17&h=17", // TODO: need new icon
-				IsFail:  true,
-				Message: fmt.Sprintf("The replicaset %s/%s is not ready", replicaset.Namespace, replicaset.Name),
+			if result != nil {
+				results = append(results, result)
 			}
-
-			results = append(results, result)
 		}
 	}
 
@@ -181,6 +189,23 @@ func replicasetStatus(outcomes []*troubleshootv1beta2.Outcome, replicaset *appsv
 	}
 
 	return result, nil
+}
+
+func getDefaultReplicaSetResult(replicaset *appsv1.ReplicaSet) *AnalyzeResult {
+	if replicaset.Spec.Replicas == nil && replicaset.Status.AvailableReplicas == 1 { // default is 1
+		return nil
+	}
+	if replicaset.Spec.Replicas != nil && *replicaset.Spec.Replicas == replicaset.Status.AvailableReplicas {
+		return nil
+	}
+
+	return &AnalyzeResult{
+		Title:   fmt.Sprintf("%s/%s ReplicaSet Status", replicaset.Namespace, replicaset.Name),
+		IconKey: "kubernetes_deployment_status",                                                  // TODO: need new icon
+		IconURI: "https://troubleshoot.sh/images/analyzer-icons/deployment-status.svg?w=17&h=17", // TODO: need new icon
+		IsFail:  true,
+		Message: fmt.Sprintf("The replicaset %s/%s is not ready", replicaset.Namespace, replicaset.Name),
+	}
 }
 
 func compareReplicaSetStatusToWhen(when string, job *appsv1.ReplicaSet) (bool, error) {

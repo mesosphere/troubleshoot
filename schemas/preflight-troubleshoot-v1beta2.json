@@ -711,6 +711,78 @@
                   }
                 }
               },
+              "jobStatus": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "namespace",
+                  "outcomes"
+                ],
+                "properties": {
+                  "checkName": {
+                    "type": "string"
+                  },
+                  "exclude": {
+                    "oneOf": [{"type": "string"},{"type": "boolean"}]
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "namespace": {
+                    "type": "string"
+                  },
+                  "outcomes": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "fail": {
+                          "type": "object",
+                          "properties": {
+                            "message": {
+                              "type": "string"
+                            },
+                            "uri": {
+                              "type": "string"
+                            },
+                            "when": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "pass": {
+                          "type": "object",
+                          "properties": {
+                            "message": {
+                              "type": "string"
+                            },
+                            "uri": {
+                              "type": "string"
+                            },
+                            "when": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "warn": {
+                          "type": "object",
+                          "properties": {
+                            "message": {
+                              "type": "string"
+                            },
+                            "uri": {
+                              "type": "string"
+                            },
+                            "when": {
+                              "type": "string"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
               "longhorn": {
                 "type": "object",
                 "required": [
@@ -1167,6 +1239,85 @@
                   }
                 }
               },
+              "replicasetStatus": {
+                "type": "object",
+                "required": [
+                  "name",
+                  "namespace",
+                  "outcomes",
+                  "selector"
+                ],
+                "properties": {
+                  "checkName": {
+                    "type": "string"
+                  },
+                  "exclude": {
+                    "oneOf": [{"type": "string"},{"type": "boolean"}]
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "namespace": {
+                    "type": "string"
+                  },
+                  "outcomes": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "fail": {
+                          "type": "object",
+                          "properties": {
+                            "message": {
+                              "type": "string"
+                            },
+                            "uri": {
+                              "type": "string"
+                            },
+                            "when": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "pass": {
+                          "type": "object",
+                          "properties": {
+                            "message": {
+                              "type": "string"
+                            },
+                            "uri": {
+                              "type": "string"
+                            },
+                            "when": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "warn": {
+                          "type": "object",
+                          "properties": {
+                            "message": {
+                              "type": "string"
+                            },
+                            "uri": {
+                              "type": "string"
+                            },
+                            "when": {
+                              "type": "string"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "selector": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
               "secret": {
                 "type": "object",
                 "required": [
@@ -1463,6 +1614,9 @@
                   },
                   "fileName": {
                     "type": "string"
+                  },
+                  "ignoreIfNoFiles": {
+                    "type": "boolean"
                   },
                   "outcomes": {
                     "type": "array",
