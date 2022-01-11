@@ -29,7 +29,6 @@ type SupportBundleCreateOpts struct {
 	SinceTime                 *time.Time
 	Redact                    bool
 	FromCLI                   bool
-	Redact                    bool
 }
 
 type SupportBundleResponse struct {
