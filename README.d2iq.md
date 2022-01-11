@@ -7,8 +7,7 @@ project - `dkp-diagnostics`.
 Any patch provided to D2iQ fork should be proposed to the upstream project which
 would eventually allow using upstream in the `dkp-diagnostics` project.
 
-The fork is based on the upstream tag `v0.13.10` (latest version at the time of
-forking the project).
+The fork is based on the upstream tag `v0.26.0`.
 
 ## Changes
 
@@ -111,7 +110,7 @@ file.
 This is a new collector created specifically for gathering pod logs from provided
 namespaces(or from all namespaces if those are not specified).
 
-This allows to us to collect logs of all the pods from all the namespaces. 
+This allows to us to collect logs of all the pods from all the namespaces.
 The pod logs are collected under `allPodLogs` directory.
 
 The data written into diagnostics bundle look like:
