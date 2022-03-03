@@ -171,6 +171,9 @@ func execCopyFromHostCreateDaemonSet(
 				},
 				Spec: corev1.PodSpec{
 					RestartPolicy: corev1.RestartPolicyAlways,
+					HostNetwork:   collector.HostNetwork,
+					HostPID:       collector.HostPID,
+					HostIPC:       collector.HostIPC,
 					InitContainers: []corev1.Container{
 						{
 							Name:            "collector",

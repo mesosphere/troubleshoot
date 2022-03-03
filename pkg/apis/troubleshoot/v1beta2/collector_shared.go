@@ -160,6 +160,10 @@ type ExecCopyFromHost struct {
 	Capabilities     []string `json:"capabilities,omitempty" yaml:"capabilities,omitempty"`
 	RunAsUser        int64    `json:"runAsUser,omitempty" yaml:"runAsUser,omitempty"`
 	RunAsNonRoot     bool     `json:"runAsNonRoot,omitempty" yaml:"runAsNonRoot,omitempty"`
+	// Enable to run with various host NS
+	HostNetwork bool `json:"hostNetwork,omitempty" yaml:"hostNetwork,omitempty"`
+	HostIPC     bool `json:"hostIPC,omitempty" yaml:"hostIPC,omitempty"`
+	HostPID     bool `json:"hostPID,omitempty" yaml:"hostPID,omitempty"`
 	// DataPath         string   `json:"dataPath" yaml:"dataPath"`
 	ExtractArchive bool `json:"extractArchive,omitempty" yaml:"extractArchive,omitempty"`
 }
