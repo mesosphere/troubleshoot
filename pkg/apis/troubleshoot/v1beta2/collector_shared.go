@@ -166,7 +166,8 @@ type Put struct {
 
 type Database struct {
 	CollectorMeta `json:",inline" yaml:",inline"`
-	URI           string `json:"uri" yaml:"uri"`
+	URI           string   `json:"uri" yaml:"uri"`
+	Parameters    []string `json:"parameters,omitempty"`
 }
 
 type Collectd struct {
