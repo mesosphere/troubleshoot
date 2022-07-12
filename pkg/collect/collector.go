@@ -89,6 +89,14 @@ func (c *Collector) IsExcluded() bool {
 		if isExcludedResult {
 			return true
 		}
+	} else if c.Collect.AllLogs != nil {
+		isExcludedResult, err := isExcluded(c.Collect.AllLogs.Exclude)
+		if err != nil {
+			return true
+		}
+		if isExcludedResult {
+			return true
+		}
 	} else if c.Collect.Run != nil {
 		isExcludedResult, err := isExcluded(c.Collect.Run.Exclude)
 		if err != nil {
@@ -231,6 +239,8 @@ func (c *Collector) RunCollectorSync(clientConfig *rest.Config, client kubernete
 		result, err = ConfigMap(ctx, c, c.Collect.ConfigMap, client)
 	} else if c.Collect.Logs != nil {
 		result, err = Logs(c, c.Collect.Logs)
+	} else if c.Collect.AllLogs != nil {
+		result, err = AllLogs(c, c.Collect.AllLogs)
 	} else if c.Collect.Run != nil {
 		result, err = Run(c, c.Collect.Run)
 	} else if c.Collect.RunPod != nil {
@@ -250,6 +260,15 @@ func (c *Collector) RunCollectorSync(clientConfig *rest.Config, client kubernete
 			namespace = c.Namespace
 		}
 		result, err = CopyFromHost(ctx, c, c.Collect.CopyFromHost, namespace, clientConfig, client)
+	} else if c.Collect.ExecCopyFromHost != nil {
+		namespace := c.Collect.ExecCopyFromHost.Namespace
+		if namespace == "" && c.Namespace == "" {
+			kubeconfig := k8sutil.GetKubeconfig()
+			namespace, _, _ = kubeconfig.Namespace()
+		} else if namespace == "" {
+			namespace = c.Namespace
+		}
+		result, err = ExecCopyFromHost(ctx, c, c.Collect.ExecCopyFromHost, namespace, clientConfig, client)
 	} else if c.Collect.HTTP != nil {
 		result, err = HTTP(c, c.Collect.HTTP)
 	} else if c.Collect.Postgres != nil {
