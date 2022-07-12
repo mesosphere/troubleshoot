@@ -23,7 +23,7 @@ type ConfigMapOutput struct {
 	ConfigMapExists bool              `json:"configMapExists"`
 	KeyExists       bool              `json:"keyExists"`
 	Value           string            `json:"value,omitempty"`
-	Data            map[string]string `json:"data,omitonempty"`
+	Data            map[string]string `json:"data,omitempty"`
 }
 
 func ConfigMap(ctx context.Context, c *Collector, configMapCollector *troubleshootv1beta2.ConfigMap, client kubernetes.Interface) (CollectorResult, error) {
@@ -34,7 +34,7 @@ func ConfigMap(ctx context.Context, c *Collector, configMapCollector *troublesho
 		configMap, err := client.CoreV1().ConfigMaps(configMapCollector.Namespace).Get(ctx, configMapCollector.Name, metav1.GetOptions{})
 		if err != nil {
 			if kuberneteserrors.IsNotFound(err) {
-				filePath, encoded, err := configMapToOutput(configMapCollector, nil, configMapCollector.Name)
+				filePath, encoded, err := configMapToOutput(configMapCollector, nil)
 				if err != nil {
 					return output, errors.Wrapf(err, "collect secret %s", configMapCollector.Name)
 				}
@@ -56,7 +56,7 @@ func ConfigMap(ctx context.Context, c *Collector, configMapCollector *troublesho
 	}
 
 	for _, configMap := range configMaps {
-		filePath, encoded, err := configMapToOutput(configMapCollector, &configMap, configMap.Name)
+		filePath, encoded, err := configMapToOutput(configMapCollector, &configMap)
 		if err != nil {
 			return output, errors.Wrapf(err, "collect configMap %s", configMap.Name)
 		}
@@ -66,15 +66,17 @@ func ConfigMap(ctx context.Context, c *Collector, configMapCollector *troublesho
 	return output, nil
 }
 
-func configMapToOutput(configMapCollector *troubleshootv1beta2.ConfigMap, configMap *corev1.ConfigMap, configMapName string) (string, []byte, error) {
+func configMapToOutput(configMapCollector *troubleshootv1beta2.ConfigMap, configMap *corev1.ConfigMap) (string, []byte, error) {
 	foundConfigMap := ConfigMapOutput{
 		Namespace: configMapCollector.Namespace,
-		Name:      configMapName,
+		Name:      configMapCollector.Name,
 		Key:       configMapCollector.Key,
 	}
 
 	if configMap != nil {
 		foundConfigMap.ConfigMapExists = true
+		foundConfigMap.Name = configMap.Name
+		foundConfigMap.Namespace = configMap.Namespace
 		if configMapCollector.IncludeAllData {
 			foundConfigMap.Data = configMap.Data
 		}
@@ -107,7 +109,7 @@ func listConfigMapsForSelector(ctx context.Context, client kubernetes.Interface,
 }
 
 func marshalConfigMapOutput(configMapCollector *troubleshootv1beta2.ConfigMap, configMap ConfigMapOutput) (string, []byte, error) {
-	path := GetConfigMapFileName(configMapCollector, configMap.Name)
+	path := GetConfigMapFileName(configMap.Namespace, configMap.Name, configMapCollector.Key)
 
 	b, err := json.MarshalIndent(configMap, "", "  ")
 	if err != nil {
@@ -117,10 +119,10 @@ func marshalConfigMapOutput(configMapCollector *troubleshootv1beta2.ConfigMap, c
 	return path, b, nil
 }
 
-func GetConfigMapFileName(configMapCollector *troubleshootv1beta2.ConfigMap, name string) string {
-	parts := []string{"configmaps", configMapCollector.Namespace, name}
-	if configMapCollector.Key != "" {
-		parts = append(parts, configMapCollector.Key)
+func GetConfigMapFileName(namespace, name, key string) string {
+	parts := []string{"configmaps", namespace, name}
+	if key != "" {
+		parts = append(parts, key)
 	}
 	return fmt.Sprintf("%s.json", filepath.Join(parts...))
 }

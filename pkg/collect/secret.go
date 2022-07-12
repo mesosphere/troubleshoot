@@ -33,7 +33,7 @@ func Secret(ctx context.Context, c *Collector, secretCollector *troubleshootv1be
 		secret, err := client.CoreV1().Secrets(secretCollector.Namespace).Get(ctx, secretCollector.Name, metav1.GetOptions{})
 		if err != nil {
 			if kuberneteserrors.IsNotFound(err) {
-				filePath, encoded, err := secretToOutput(secretCollector, nil, secretCollector.Name)
+				filePath, encoded, err := secretToOutput(secretCollector, nil)
 				if err != nil {
 					return output, errors.Wrapf(err, "collect secret %s", secretCollector.Name)
 				}
@@ -55,7 +55,7 @@ func Secret(ctx context.Context, c *Collector, secretCollector *troubleshootv1be
 	}
 
 	for _, secret := range secrets {
-		filePath, encoded, err := secretToOutput(secretCollector, &secret, secret.Name)
+		filePath, encoded, err := secretToOutput(secretCollector, &secret)
 		if err != nil {
 			return output, errors.Wrapf(err, "collect secret %s", secret.Name)
 		}
@@ -65,15 +65,17 @@ func Secret(ctx context.Context, c *Collector, secretCollector *troubleshootv1be
 	return output, nil
 }
 
-func secretToOutput(secretCollector *troubleshootv1beta2.Secret, secret *corev1.Secret, secretName string) (string, []byte, error) {
+func secretToOutput(secretCollector *troubleshootv1beta2.Secret, secret *corev1.Secret) (string, []byte, error) {
 	foundSecret := SecretOutput{
 		Namespace: secretCollector.Namespace,
-		Name:      secretName,
+		Name:      secretCollector.Name,
 		Key:       secretCollector.Key,
 	}
 
 	if secret != nil {
 		foundSecret.SecretExists = true
+		foundSecret.Name = secret.Name
+		foundSecret.Namespace = secret.Namespace
 		if secretCollector.Key != "" {
 			if val, ok := secret.Data[secretCollector.Key]; ok {
 				foundSecret.KeyExists = true
@@ -103,7 +105,7 @@ func listSecretsForSelector(ctx context.Context, client kubernetes.Interface, na
 }
 
 func marshalSecretOutput(secretCollector *troubleshootv1beta2.Secret, secret SecretOutput) (string, []byte, error) {
-	path := GetSecretFileName(secretCollector, secret.Name)
+	path := GetSecretFileName(secret.Namespace, secret.Name, secret.Key)
 
 	b, err := json.MarshalIndent(secret, "", "  ")
 	if err != nil {
@@ -113,10 +115,10 @@ func marshalSecretOutput(secretCollector *troubleshootv1beta2.Secret, secret Sec
 	return path, b, nil
 }
 
-func GetSecretFileName(secretCollector *troubleshootv1beta2.Secret, name string) string {
-	parts := []string{"secrets", secretCollector.Namespace, name}
-	if secretCollector.Key != "" {
-		parts = append(parts, secretCollector.Key)
+func GetSecretFileName(namespace, name, key string) string {
+	parts := []string{"secrets", namespace, name}
+	if key != "" {
+		parts = append(parts, key)
 	}
 	return fmt.Sprintf("%s.json", filepath.Join(parts...))
 }

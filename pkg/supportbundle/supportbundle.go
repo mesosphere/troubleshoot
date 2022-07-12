@@ -20,6 +20,7 @@ import (
 )
 
 type SupportBundleCreateOpts struct {
+	NamePrefix                string
 	CollectorProgressCallback func(chan interface{}, string)
 	CollectWithoutPermissions bool
 	HttpClient                *http.Client
