@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"path" // this code uses 'path' and not 'path/filepath' because we don't want backslashes on windows
 	"path/filepath"
+	"sort"
 	"strings"
 
 	troubleshootv1beta2 "github.com/replicatedhq/troubleshoot/pkg/apis/troubleshoot/v1beta2"
@@ -23,6 +24,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/version"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -97,6 +99,14 @@ func ClusterResources(c *Collector, clusterResourcesCollector *troubleshootv1bet
 		}
 	}
 
+	// pod disruption budgets (for all existing namespaces)
+
+	PodDisruptionBudgets, pdbError := getPodDisruptionBudgets(ctx, client, namespaceNames)
+	for k, v := range PodDisruptionBudgets {
+		output.SaveResult(c.BundlePath, path.Join("cluster-resources/pod-disruption-budgets", k), bytes.NewBuffer(v))
+	}
+	output.SaveResult(c.BundlePath, "cluster-resources/pod-disruption-budgets-info.json", marshalErrors(pdbError))
+	
 	// services
 	services, servicesErrors := services(ctx, client, namespaceNames)
 	for k, v := range services {
@@ -145,6 +155,14 @@ func ClusterResources(c *Collector, clusterResourcesCollector *troubleshootv1bet
 		output.SaveResult(c.BundlePath, path.Join("cluster-resources/ingress", k), bytes.NewBuffer(v))
 	}
 	output.SaveResult(c.BundlePath, "cluster-resources/ingress-errors.json", marshalErrors(ingressErrors))
+
+	// network policy
+	networkPolicy, networkPolicyErrors := networkPolicy(ctx, client, namespaceNames)
+	for k, v := range networkPolicy {
+		output.SaveResult(c.BundlePath, path.Join("cluster-resources/network-policy", k), bytes.NewBuffer(v))
+	}
+	output.SaveResult(c.BundlePath, "cluster-resources/network-policy-errors.json", marshalErrors(networkPolicyErrors))
+
 
 	// storage classes
 	storageClasses, storageErrors := storageClasses(ctx, client)
@@ -323,6 +341,34 @@ func pods(ctx context.Context, client *kubernetes.Clientset, namespaces []string
 	}
 
 	return podsByNamespace, errorsByNamespace, unhealthyPods
+}
+
+func getPodDisruptionBudgets(ctx context.Context, client *kubernetes.Clientset, namespaces []string) (map[string][]byte, map[string]string) {
+	pdbByNamespace := make(map[string][]byte)
+	errorsByNamespace := make(map[string]string)
+
+	for _, namespace := range namespaces {
+		PodDisruptionBudgets, err := client.PolicyV1beta1().PodDisruptionBudgets(namespace).List(ctx, metav1.ListOptions{})
+		if err != nil {
+			errorsByNamespace[namespace] = err.Error()
+			continue
+		}
+
+		gvk, err := apiutil.GVKForObject(PodDisruptionBudgets, scheme.Scheme)
+		if err == nil {
+			PodDisruptionBudgets.GetObjectKind().SetGroupVersionKind(gvk)
+		}
+
+		b, err := json.MarshalIndent(PodDisruptionBudgets, "", "  ")
+		if err != nil {
+			errorsByNamespace[namespace] = err.Error()
+			continue
+		}
+
+		pdbByNamespace[namespace+".json"] = b
+	}
+
+	return pdbByNamespace, errorsByNamespace
 }
 
 func services(ctx context.Context, client *kubernetes.Clientset, namespaces []string) (map[string][]byte, map[string]string) {
@@ -617,6 +663,41 @@ func ingressV1beta(ctx context.Context, client *kubernetes.Clientset, namespaces
 	return ingressByNamespace, errorsByNamespace
 }
 
+func networkPolicy(ctx context.Context, client *kubernetes.Clientset, namespaces []string) (map[string][]byte, map[string]string) {
+	networkPolicyByNamespace := make(map[string][]byte)
+	errorsByNamespace := make(map[string]string)
+
+	for _, namespace := range namespaces {
+		networkPolicy, err := client.NetworkingV1().NetworkPolicies(namespace).List(ctx, metav1.ListOptions{})
+		if err != nil {
+			errorsByNamespace[namespace] = err.Error()
+			continue
+		}
+
+		gvk, err := apiutil.GVKForObject(networkPolicy, scheme.Scheme)
+		if err == nil {
+			networkPolicy.GetObjectKind().SetGroupVersionKind(gvk)
+		}
+
+		for i, o := range networkPolicy.Items {
+			gvk, err := apiutil.GVKForObject(&o, scheme.Scheme)
+			if err == nil {
+				networkPolicy.Items[i].GetObjectKind().SetGroupVersionKind(gvk)
+			}
+		}
+
+		b, err := json.MarshalIndent(networkPolicy, "", "  ")
+		if err != nil {
+			errorsByNamespace[namespace] = err.Error()
+			continue
+		}
+
+		networkPolicyByNamespace[namespace+".json"] = b
+	}
+
+	return networkPolicyByNamespace, errorsByNamespace
+}
+
 func storageClasses(ctx context.Context, client *kubernetes.Clientset) ([]byte, []string) {
 	ok, err := discovery.HasResource(client, "storage.k8s.io/v1", "StorageClass")
 	if err != nil {
@@ -767,6 +848,18 @@ func crs(ctx context.Context, dyn dynamic.Interface, client *kubernetes.Clientse
 	return crsV1beta(ctx, dyn, config, namespaces)
 }
 
+// Selects the newest version by kube-aware priority.
+func selectCRDVersionByPriority(versions []string) string {
+	if len(versions) == 0 {
+		return ""
+	}
+
+	sort.Slice(versions, func(i, j int) bool {
+		return version.CompareKubeAwareVersionStrings(versions[i], versions[j]) < 0
+	})
+	return versions[len(versions)-1]
+}
+
 func crsV1(ctx context.Context, client dynamic.Interface, config *rest.Config, namespaces []string) (map[string][]byte, map[string]string) {
 	customResources := make(map[string][]byte)
 	errorList := make(map[string]string)
@@ -795,10 +888,15 @@ func crsV1(ctx context.Context, client dynamic.Interface, config *rest.Config, n
 
 		var version string
 		if len(crd.Spec.Versions) > 0 {
-			version = crd.Spec.Versions[0].Name
-		}
-		if len(crd.Status.StoredVersions) > 0 {
-			version = crd.Status.StoredVersions[0]
+			versions := []string{}
+			for _, v := range crd.Spec.Versions {
+				versions = append(versions, v.Name)
+			}
+
+			version = versions[0]
+			if len(versions) > 1 {
+				version = selectCRDVersionByPriority(versions)
+			}
 		}
 		gvr := schema.GroupVersionResource{
 			Group:    crd.Spec.Group,
@@ -902,6 +1000,20 @@ func crsV1beta(ctx context.Context, client dynamic.Interface, config *rest.Confi
 			Version:  crd.Spec.Version,
 			Resource: crd.Spec.Names.Plural,
 		}
+
+		if len(crd.Spec.Versions) > 0 {
+			versions := []string{}
+			for _, v := range crd.Spec.Versions {
+				versions = append(versions, v.Name)
+			}
+
+			version := versions[0]
+			if len(versions) > 1 {
+				version = selectCRDVersionByPriority(versions)
+			}
+			gvr.Version = version
+		}
+
 		isNamespacedResource := crd.Spec.Scope == apiextensionsv1beta1.NamespaceScoped
 
 		// Fetch all resources of given type
@@ -1168,7 +1280,7 @@ func events(ctx context.Context, client *kubernetes.Clientset, namespaces []stri
 	return eventsByNamespace, errorsByNamespace
 }
 
-// not exprted from: https://github.com/kubernetes/kubernetes/blob/master/pkg/kubectl/cmd/auth/cani.go#L339
+// not exported from: https://github.com/kubernetes/kubernetes/blob/master/pkg/kubectl/cmd/auth/cani.go#L339
 func convertToPolicyRule(status authorizationv1.SubjectRulesReviewStatus) []rbacv1.PolicyRule {
 	ret := []rbacv1.PolicyRule{}
 	for _, resource := range status.ResourceRules {

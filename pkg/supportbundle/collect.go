@@ -20,7 +20,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 )
 
-func runHostCollectors(opts SupportBundleCreateOpts, hostCollectors []*troubleshootv1beta2.HostCollect, bundlePath string) (collect.CollectorResult, error) {
+func runHostCollectors(hostCollectors []*troubleshootv1beta2.HostCollect, additionalRedactors *troubleshootv1beta2.Redactor, bundlePath string, opts SupportBundleCreateOpts) (collect.CollectorResult, error) {
 	collectSpecs := make([]*troubleshootv1beta2.HostCollect, 0, 0)
 	collectSpecs = append(collectSpecs, hostCollectors...)
 
@@ -42,10 +42,10 @@ func runHostCollectors(opts SupportBundleCreateOpts, hostCollectors []*troublesh
 			continue
 		}
 
-		opts.ProgressChan <- fmt.Sprintf("[%s] Running collector...", collector.Title())
+		opts.ProgressChan <- fmt.Sprintf("[%s] Running host collector...", collector.Title())
 		result, err := collector.Collect(opts.ProgressChan)
 		if err != nil {
-			opts.ProgressChan <- errors.Errorf("failed to run collector: %s: %v", collector.Title(), err)
+			opts.ProgressChan <- errors.Errorf("failed to run host collector: %s: %v", collector.Title(), err)
 		}
 		for k, v := range result {
 			allCollectedData[k] = v
@@ -53,6 +53,19 @@ func runHostCollectors(opts SupportBundleCreateOpts, hostCollectors []*troublesh
 	}
 
 	collectResult = allCollectedData
+
+	globalRedactors := []*troubleshootv1beta2.Redact{}
+	if additionalRedactors != nil {
+		globalRedactors = additionalRedactors.Spec.Redactors
+	}
+
+	if opts.Redact {
+		err := collect.RedactResult(bundlePath, collectResult, globalRedactors)
+		if err != nil {
+			err = errors.Wrap(err, "failed to redact")
+			return collectResult, err
+		}
+	}
 
 	return collectResult, nil
 }
@@ -79,7 +92,7 @@ func runCollectors(collectors []*troubleshootv1beta2.Collect, additionalRedactor
 
 	k8sClient, err := kubernetes.NewForConfig(opts.KubernetesRestConfig)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to instantiate kuberentes client")
+		return nil, errors.Wrap(err, "failed to instantiate Kubernetes client")
 	}
 
 	if err := cleanedCollectors.CheckRBAC(context.Background()); err != nil {
