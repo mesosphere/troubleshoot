@@ -245,6 +245,11 @@ func execCopyFromHostCreateDaemonSet(
 				Key:      "node-role.kubernetes.io/master",
 				Operator: corev1.TolerationOpExists,
 			},
+			{
+				Key:      "node-role.kubernetes.io/control-plane",
+				Operator: "Exists",
+				Effect:   "NoSchedule",
+			},
 		}
 	}
 
