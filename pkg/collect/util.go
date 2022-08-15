@@ -47,6 +47,14 @@ func DeterministicIDForCollector(collector *troubleshootv1beta2.Collect) string 
 		unsafeID = fmt.Sprintf("logs-%s-%s", collector.Logs.Namespace, selectorToString(collector.Logs.Selector))
 	}
 
+	if collector.AllLogs != nil {
+		if len(collector.AllLogs.Namespaces) == 0 || len(collector.AllLogs.Selector) == 0 {
+			unsafeID = "logs-allLogs-collector"
+		} else {
+			unsafeID = fmt.Sprintf("logs-%s-%s", namespaceToString(collector.AllLogs.Namespaces), selectorToString(collector.AllLogs.Selector))
+		}
+	}
+
 	if collector.Run != nil {
 		unsafeID = "run"
 		if collector.Run.CollectorName != "" {

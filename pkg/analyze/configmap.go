@@ -9,14 +9,7 @@ import (
 )
 
 func analyzeConfigMap(analyzer *troubleshootv1beta2.AnalyzeConfigMap, getCollectedFileContents func(string) ([]byte, error)) (*AnalyzeResult, error) {
-	filename := collect.GetConfigMapFileName(
-		&troubleshootv1beta2.ConfigMap{
-			Namespace: analyzer.Namespace,
-			Name:      analyzer.ConfigMapName,
-			Key:       analyzer.Key,
-		},
-		analyzer.ConfigMapName,
-	)
+	filename := collect.GetConfigMapFileName(analyzer.Namespace, analyzer.ConfigMapName, analyzer.Key)
 
 	configMapData, err := getCollectedFileContents(filename)
 	if err != nil {
