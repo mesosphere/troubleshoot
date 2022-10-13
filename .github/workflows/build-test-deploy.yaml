@@ -14,11 +14,11 @@ concurrency:
 
 jobs:
   test:
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
     steps:
       - uses: actions/setup-go@v1
         with:
-          go-version: "1.17"
+          go-version: "1.19"
 
       - name: setup env
         run: |
@@ -35,7 +35,7 @@ jobs:
     steps:
       - uses: actions/setup-go@v1
         with:
-          go-version: '1.17'
+          go-version: '1.19'
       - name: setup env
         run: |
           echo "GOPATH=$(go env GOPATH)" >> $GITHUB_ENV
@@ -104,14 +104,14 @@ jobs:
           name: preflight
           path: bin/
       - run: chmod +x bin/preflight
-      - run: make e2e-test
+      - run: make preflight-e2e-test
 
   compile-supportbundle:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/setup-go@v1
         with:
-          go-version: '1.17'
+          go-version: '1.19'
       - name: setup env
         run: |
           echo "GOPATH=$(go env GOPATH)" >> $GITHUB_ENV
@@ -143,12 +143,29 @@ jobs:
       - run: ./bin/support-bundle ./examples/support-bundle/sample-supportbundle.yaml
       - run: ./bin/support-bundle https://kots.io
 
+  validate-supportbundle-e2e:
+    runs-on: ubuntu-latest
+    needs: compile-supportbundle
+    steps:
+      - uses: actions/checkout@master
+      - uses: replicatedhq/action-k3s@main
+        id: k3s
+        with:
+          version: v1.23.6-k3s1
+      - name: Download support bundle binary
+        uses: actions/download-artifact@v1
+        with:
+          name: support-bundle
+          path: bin/
+      - run: chmod +x bin/support-bundle
+      - run: make support-bundle-e2e-test
+
   compile-collect:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/setup-go@v1
         with:
-          go-version: '1.17'
+          go-version: '1.19'
       - name: setup env
         run: |
           echo "GOPATH=$(go env GOPATH)" >> $GITHUB_ENV
@@ -173,7 +190,7 @@ jobs:
 
       - uses: actions/setup-go@v1
         with:
-          go-version: "1.17"
+          go-version: "1.19"
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v2
@@ -202,7 +219,7 @@ jobs:
 
       - uses: actions/setup-go@v1
         with:
-          go-version: "1.17"
+          go-version: "1.19"
 
       - uses: sigstore/cosign-installer@main
         with:

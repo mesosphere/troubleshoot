@@ -9,12 +9,12 @@ Preflight checks are an easy-to-run set of conformance tests that can be written
 
 To run a sample preflight check from a sample application, install the preflight kubectl plugin:
 
-```shell
+```
 curl https://krew.sh/preflight | bash
 ```
  and run:
  
-```shell
+```
 kubectl preflight https://preflight.replicated.com
 ```
 
@@ -26,12 +26,12 @@ A support bundle is an archive that's created in-cluster, by collecting logs and
 
 To collect a sample support bundle, install the troubleshoot kubectl plugin:
 
-```shell
+```
 curl https://krew.sh/support-bundle | bash
 ```
  and run:
  
-```shell
+```
 kubectl support-bundle https://support-bundle.replicated.com
 ```
 For more details on creating the custom resource files that drive support-bundle collection, visit [creating collectors](https://troubleshoot.sh/docs/collect/) and [creating analyzers](https://troubleshoot.sh/docs/analyze/).
@@ -48,7 +48,7 @@ A signed SBOM  that includes Troubleshoot dependencies is included in each relea
 
 The following example illustrates using [cosign](https://github.com/sigstore/cosign) to verify that **troubleshoot-sbom.tgz** has
 not been tampered with.
-```shell
+```
 $ cosign verify-blob -key key.pub -signature troubleshoot-sbom.tgz.sig troubleshoot-sbom.tgz
 Verified OK
 ```

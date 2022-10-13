@@ -17,7 +17,7 @@ import (
 func RootCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "support-bundle [url]",
-		Args:  cobra.MinimumNArgs(1),
+		Args:  cobra.MinimumNArgs(0),
 		Short: "Generate a support bundle",
 		Long: `A support bundle is an archive of files, output, metrics and state
 from a server that can be used to assist when troubleshooting a Kubernetes cluster.`,
@@ -34,7 +34,7 @@ from a server that can be used to assist when troubleshooting a Kubernetes clust
 			v := viper.GetViper()
 
 			logger.SetQuiet(v.GetBool("quiet"))
-			return runTroubleshoot(v, args[0])
+			return runTroubleshoot(v, args)
 		},
 	}
 
@@ -47,6 +47,8 @@ from a server that can be used to assist when troubleshooting a Kubernetes clust
 	cmd.Flags().Bool("redact", true, "enable/disable default redactions")
 	cmd.Flags().Bool("interactive", true, "enable/disable interactive mode")
 	cmd.Flags().Bool("collect-without-permissions", true, "always generate a support bundle, even if it some require additional permissions")
+	cmd.Flags().StringSliceP("selector", "l", []string{"troubleshoot.io/kind=supportbundle-spec"}, "selector to filter on for loading additional support bundle specs found in secrets within the cluster")
+	cmd.Flags().Bool("load-cluster-specs", false, "enable/disable loading additional support bundle specs found in secrets within the cluster. required when no specs are provided on the command line")
 	cmd.Flags().String("since-time", "", "force pod logs collectors to return logs after a specific date (RFC3339)")
 	cmd.Flags().String("since", "", "force pod logs collectors to return logs newer than a relative duration like 5s, 2m, or 3h.")
 	cmd.Flags().StringP("output", "o", "", "specify the output file path for the support bundle")
@@ -55,6 +57,10 @@ from a server that can be used to assist when troubleshooting a Kubernetes clust
 	// hidden in favor of the `insecure-skip-tls-verify` flag
 	cmd.Flags().Bool("allow-insecure-connections", false, "when set, do not verify TLS certs when retrieving spec and reporting results")
 	cmd.Flags().MarkHidden("allow-insecure-connections")
+
+	// `no-uri` references the `followURI` functionality where we can use an upstream spec when creating a support bundle
+	// This flag makes sure we can also disable this and fall back to the default spec.
+	cmd.Flags().Bool("no-uri", false, "When this flag is used, Troubleshoot does not attempt to retrieve the bundle referenced by the uri: field in the spec.`")
 
 	viper.BindPFlags(cmd.Flags())
 
