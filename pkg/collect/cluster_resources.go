@@ -251,8 +251,8 @@ func ClusterResources(c *Collector, clusterResourcesCollector *troubleshootv1bet
 
 	//Cluster Role Bindings
 	clusterRoleBindings, clusterRoleBindingsErrors := clusterRoleBindings(ctx, client)
-	output.SaveResult(c.BundlePath, "cluster-resources/clusterRoleBindings.json", bytes.NewBuffer(clusterRoleBindings))
-	output.SaveResult(c.BundlePath, "cluster-resources/clusterRoleBindings-errors.json", marshalErrors(clusterRoleBindingsErrors))
+	output.SaveResult(c.BundlePath, "cluster-resources/clusterrolebindings.json", bytes.NewBuffer(clusterRoleBindings))
+	output.SaveResult(c.BundlePath, "cluster-resources/clusterrolebindings-errors.json", marshalErrors(clusterRoleBindingsErrors))
 
 	return output, nil
 }
