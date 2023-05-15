@@ -27,6 +27,14 @@ type ClusterResources struct {
 	IgnoreRBAC    bool     `json:"ignoreRBAC,omitempty" yaml:"ignoreRBAC"`
 }
 
+type CPUMemUsage struct {
+	CollectorMeta `json:",inline" yaml:",inline"`
+	// How far back to query metrics in days.
+	Duration int `json:"duration,omitempty" yaml:"duration,omitempty"`
+	// How often to sample metrics in hours.
+	SamplingStep int `json:"samplingStep,omitempty" yaml:"samplingStep,omitempty"`
+}
+
 type Secret struct {
 	CollectorMeta `json:",inline" yaml:",inline"`
 	Name          string   `json:"name,omitempty" yaml:"name,omitempty"`
@@ -258,6 +266,7 @@ type Collect struct {
 	Copy             *Copy             `json:"copy,omitempty" yaml:"copy,omitempty"`
 	CopyFromHost     *CopyFromHost     `json:"copyFromHost,omitempty" yaml:"copyFromHost,omitempty"`
 	ExecCopyFromHost *ExecCopyFromHost `json:"execCopyFromHost,omitempty" yaml:"execCopyFromHost,omitempty"`
+	CPUMemUsage      *CPUMemUsage      `json:"cpuUsage,omitempty" yaml:"cpuUsage,omitempty"`
 	HTTP             *HTTP             `json:"http,omitempty" yaml:"http,omitempty"`
 	Postgres         *Database         `json:"postgres,omitempty" yaml:"postgres,omitempty"`
 	Mysql            *Database         `json:"mysql,omitempty" yaml:"mysql,omitempty"`

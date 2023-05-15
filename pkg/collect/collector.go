@@ -92,6 +92,8 @@ func GetCollector(collector *troubleshootv1beta2.Collect, bundlePath string, nam
 		return &CollectMysql{collector.Mysql, bundlePath, namespace, clientConfig, client, ctx, RBACErrors}, true
 	case collector.Redis != nil:
 		return &CollectRedis{collector.Redis, bundlePath, namespace, clientConfig, client, ctx, RBACErrors}, true
+	case collector.CPUMemUsage != nil:
+		return &CollectCPUMemUtilisation{collector.CPUMemUsage, bundlePath, namespace, clientConfig, client, ctx, RBACErrors}, true
 	case collector.Collectd != nil:
 		return &CollectCollectd{collector.Collectd, bundlePath, namespace, clientConfig, client, ctx, RBACErrors}, true
 	case collector.Ceph != nil:
@@ -126,6 +128,9 @@ func getCollectorName(c interface{}) string {
 		collector = "secret"
 		name = v.Collector.CollectorName
 		selector = strings.Join(v.Collector.Selector, ",")
+	case *CollectCPUMemUtilisation:
+		collector = "cpu-memory-utilisation"
+		name = v.Collector.CollectorName
 	case *CollectConfigMap:
 		collector = "configmap"
 		name = v.Collector.CollectorName
