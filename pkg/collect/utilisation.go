@@ -31,12 +31,14 @@ import (
 	"k8s.io/client-go/transport/spdy"
 )
 
+// UsageReading the CPU and memory utilisation at a given timestamp
 type UsageReading struct {
 	Timestamp time.Time `json:"timestamp,omitempty" yaml:"timestamp,omitempty"`
 	CPU       float64   `json:"cpu,omitempty" yaml:"cpu,omitempty"`
 	Memory    float64   `json:"memory,omitempty" yaml:"memory,omitempty"`
 }
 
+// Utilisation a list of UsageReadings by namespace
 type Utilisation struct {
 	Readings map[string][]UsageReading `json:"readings,omitempty" yaml:"readings,omitempty"`
 }
@@ -59,28 +61,27 @@ func (c *CollectCPUMemUtilisation) IsExcluded() (bool, error) {
 	return isExcluded(c.Collector.Exclude)
 }
 
-// todo: Rework.
 func (c *CollectCPUMemUtilisation) Collect(progressChan chan<- interface{}) (CollectorResult, error) {
 	thanosServiceNamespace := "kommander"
 	output := NewResult()
 
-	// Get the pods of the deployment
+	// Get the pods of the thanos-query deployment.
 	pods, err := c.Client.CoreV1().Pods(thanosServiceNamespace).List(context.Background(), metav1.ListOptions{
 		LabelSelector: "app.kubernetes.io/component=query,app.kubernetes.io/instance=thanos,app.kubernetes.io/name=thanos",
 	})
 	if err != nil {
-		return nil, errors.Wrap(err, "Could not look up thanos-query pods: ")
+		return nil, errors.Wrap(err, "could not look up thanos-query pods")
 	}
 	if len(pods.Items) < 1 {
 		// Check if no thanos-query pods are found.
-		return nil, errors.New("Could not find any thanos-query pods.")
+		return nil, errors.New("could not find any thanos-query pods")
 	}
 	podName := pods.Items[0].Name
 
-	// Create a Prometheus API client using the API server endpoint
+	// Create a Prometheus API client using the API server endpoint.
 	prometheusClient, stopCh, err := StartPortForwarding(context.Background(), c.ClientConfig, coreout.NewNonInteractiveShell(os.Stdout, os.Stderr, 4), podName)
 	if err != nil {
-		return nil, errors.Wrap(err, "Error querying Prometheus for CPU utilization:")
+		return nil, errors.Wrap(err, "could not query Prometheus for CPU utilization")
 	}
 	v1api := v1.NewAPI(prometheusClient)
 
@@ -95,7 +96,7 @@ func (c *CollectCPUMemUtilisation) Collect(progressChan chan<- interface{}) (Col
 		Step:  step,
 	})
 	if err != nil {
-		return nil, errors.Wrap(err, "Error querying Prometheus for CPU utilization: ")
+		return nil, errors.Wrap(err, "could not query Prometheus for CPU utilization")
 	}
 
 	memoryQuery := "sum(container_memory_working_set_bytes{container!='POD', container!=''}) by (namespace)"
@@ -106,23 +107,23 @@ func (c *CollectCPUMemUtilisation) Collect(progressChan chan<- interface{}) (Col
 	})
 
 	if err != nil {
-		return nil, errors.Wrap(err, "Error querying Prometheus for memory utilization: ")
+		return nil, errors.Wrap(err, "could not query Prometheus for memory utilization")
 	}
 	// Process query result
 	memMatrix, ok := memoryResult.(model.Matrix)
 	if !ok {
-		return nil, errors.New("Invalid query result, expected matrix")
+		return nil, errors.New("invalid query result, expected matrix")
 	}
 
 	// Process query result
 	cpuMatrix, ok := cpuResult.(model.Matrix)
 	if !ok {
-		return nil, errors.New("Invalid query result, expected matrix")
+		return nil, errors.New("invalid query result, expected matrix")
 	}
-	metricsByNamespace := make(map[string]map[string][]model.SamplePair, 0)
+	metricsByNamespace := make(map[string]map[string][]model.SamplePair, max(memMatrix.Len(), cpuMatrix.Len()))
 	for _, entry := range memMatrix {
 		namespaceName := string(entry.Metric["namespace"])
-		metricsByNamespace[namespaceName] = make(map[string][]model.SamplePair, 0)
+		metricsByNamespace[namespaceName] = make(map[string][]model.SamplePair, 2)
 		metricsByNamespace[namespaceName]["memory"] = entry.Values
 		metricsByNamespace[namespaceName]["cpu"] = []model.SamplePair{}
 	}
@@ -132,7 +133,7 @@ func (c *CollectCPUMemUtilisation) Collect(progressChan chan<- interface{}) (Col
 		if ok {
 			metricsByNamespace[namespaceName]["cpu"] = entry.Values
 		} else {
-			metricsByNamespace[namespaceName] = make(map[string][]model.SamplePair, 0)
+			metricsByNamespace[namespaceName] = make(map[string][]model.SamplePair, 2)
 			metricsByNamespace[namespaceName]["cpu"] = entry.Values
 			metricsByNamespace[namespaceName]["memory"] = []model.SamplePair{}
 		}
@@ -142,12 +143,12 @@ func (c *CollectCPUMemUtilisation) Collect(progressChan chan<- interface{}) (Col
 	for namespaceName, readingsLists := range metricsByNamespace {
 		jointReadings, err := joinReadings(readingsLists["cpu"], readingsLists["memory"])
 		if err != nil {
-			return nil, errors.Wrap(err, "Failed to parse readings: ")
+			return nil, errors.Wrap(err, "failed to parse readings")
 		}
 
 		payload, err := json.MarshalIndent(jointReadings, "", "  ")
 		if err != nil {
-			return nil, errors.Wrap(err, "Error formatting readings: ")
+			return nil, errors.Wrap(err, "could not format readings")
 		}
 		path := []string{"utilisation", namespaceName}
 		output.SaveResult(c.BundlePath, filepath.Join(path...), bytes.NewBuffer(payload))
@@ -168,7 +169,7 @@ func StartPortForwarding(
 	)
 
 	if err = wait.PollImmediateUntilWithContext(ctx, 1*time.Second, func(ctx context.Context) (bool, error) {
-		localPort, stopCh, lastErr = PortForward(
+		localPort, stopCh, lastErr = portForward(
 			restConfig, "kommander", podName, 10902, out,
 		)
 		return lastErr == nil, nil
@@ -183,17 +184,15 @@ func StartPortForwarding(
 		},
 	})
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create prometheus client: %w", err)
+		return nil, nil, errors.Wrap(err, "failed to create prometheus client")
 	}
 
 	return prometheusClient, stopCh, err
 }
 
-type PortForwardFn = func(*rest.Config, string, string, int, output.Output) (int, chan struct{}, error)
-
-// PortForward creates an asynchronous port-forward to a pod on the cluster in order to
+// portForward creates an asynchronous port-forward to a pod on the cluster in order to
 // access it over the local network.
-func PortForward(cfg *rest.Config, ns, pod string, port int, out output.Output) (localPort int, stop chan struct{}, err error) {
+func portForward(cfg *rest.Config, ns, pod string, port int, out output.Output) (localPort int, stop chan struct{}, err error) {
 	dialer, err := getDialer(cfg, ns, pod)
 	if err != nil {
 		return 0, nil, err
@@ -244,23 +243,21 @@ func getPortForwarder(dialer httpstream.Dialer,
 }
 
 func runPortForwarder(pf *portforward.PortForwarder, ready chan struct{}, out output.Output) error {
-	out.Info("running the port-forwarder in the background")
 	errCh := make(chan error)
-	// start the portforwarder in the background and look for errors
+	// Start the portforwarder in the background and look for errors.
 	go func() {
 		if err := pf.ForwardPorts(); err != nil {
 			errCh <- err
 		}
 		close(errCh)
 	}()
-	// wait for the port-forward to be established and check for errors
-	out.Info("waiting for port-forward to be established")
+	// Wait for the port-forward to be established and check for errors.
 	select {
 	case <-ready:
 		out.Info("the port-forward has signaled ready")
 	case err := <-errCh:
 		if err != nil {
-			return fmt.Errorf("port-forward failed: %w", err)
+			return errors.Wrap(err, "failed to port-forward")
 		}
 	}
 	return nil
@@ -286,16 +283,17 @@ func constructPortForwardURL(host, ns, pod string) (*url.URL, error) {
 	}, nil
 }
 
+// joinReadings an sql-like outer join of two lists of readings on timestamps.
 func joinReadings(cpuSamples, memSamples []model.SamplePair) ([]UsageReading, error) {
 	jointReadingsList := make([]UsageReading, 0)
 	i, j := 0, 0
 
 	for i < len(cpuSamples) && j < len(memSamples) {
 		if cpuSamples[i].Timestamp.Before(memSamples[j].Timestamp) {
-			// Include item from CPU readings
+			// Include item from CPU readings.
 			value, err := strconv.ParseFloat(cpuSamples[i].Value.String(), 64)
 			if err != nil {
-				return nil, errors.Wrap(err, "Failed to parse float:")
+				return nil, errors.Wrap(err, "failed to parse float")
 			}
 			jointReadingsList = append(jointReadingsList, UsageReading{
 				Timestamp: cpuSamples[i].Timestamp.Time().UTC(),
@@ -303,10 +301,10 @@ func joinReadings(cpuSamples, memSamples []model.SamplePair) ([]UsageReading, er
 			})
 			i++
 		} else if cpuSamples[i].Timestamp.After(memSamples[j].Timestamp) {
-			// Include item from memory readings
+			// Include item from memory readings.
 			value, err := strconv.ParseFloat(memSamples[j].Value.String(), 64)
 			if err != nil {
-				return nil, errors.Wrap(err, "Failed to parse float:")
+				return nil, errors.Wrap(err, "failed to parse float")
 			}
 			jointReadingsList = append(jointReadingsList, UsageReading{
 				Timestamp: memSamples[j].Timestamp.Time().UTC(),
@@ -314,7 +312,7 @@ func joinReadings(cpuSamples, memSamples []model.SamplePair) ([]UsageReading, er
 			})
 			j++
 		} else {
-			// Include items from both readings with matching timestamp
+			// Include items from both readings with matching timestamp.
 			cpu, err := strconv.ParseFloat(cpuSamples[i].Value.String(), 64)
 			if err != nil {
 				return nil, errors.Wrap(err, "Failed to parse float:")
@@ -333,11 +331,11 @@ func joinReadings(cpuSamples, memSamples []model.SamplePair) ([]UsageReading, er
 		}
 	}
 
-	// Include remaining items from cpu readings
+	// Include remaining items from cpu readings, if any.
 	for i < len(cpuSamples) {
 		cpu, err := strconv.ParseFloat(cpuSamples[i].Value.String(), 64)
 		if err != nil {
-			return nil, errors.Wrap(err, "Failed to parse float:")
+			return nil, errors.Wrap(err, "failed to parse float")
 		}
 		jointReadingsList = append(jointReadingsList, UsageReading{
 			Timestamp: cpuSamples[i].Timestamp.Time().UTC(),
@@ -346,11 +344,11 @@ func joinReadings(cpuSamples, memSamples []model.SamplePair) ([]UsageReading, er
 		i++
 	}
 
-	// Include remaining items from memory readings
+	// Include remaining items from memory readings, if any.
 	for j < len(memSamples) {
 		mem, err := strconv.ParseFloat(memSamples[j].Value.String(), 64)
 		if err != nil {
-			return nil, errors.Wrap(err, "Failed to parse float:")
+			return nil, errors.Wrap(err, "failed to parse float")
 		}
 		jointReadingsList = append(jointReadingsList, UsageReading{
 			Timestamp: memSamples[j].Timestamp.Time().UTC(),
@@ -360,4 +358,11 @@ func joinReadings(cpuSamples, memSamples []model.SamplePair) ([]UsageReading, er
 	}
 
 	return jointReadingsList, nil
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }
