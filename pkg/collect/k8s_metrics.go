@@ -23,7 +23,7 @@ const (
 )
 
 type CollectMetrics struct {
-	Collector    *troubleshootv1beta2.MetricsRequest
+	Collector    *troubleshootv1beta2.CustomMetrics
 	BundlePath   string
 	Namespace    string
 	ClientConfig *rest.Config
