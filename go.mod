@@ -40,12 +40,12 @@ require (
 	go.opentelemetry.io/otel/sdk v1.15.1
 	golang.org/x/sync v0.2.0
 	gopkg.in/yaml.v2 v2.4.0
-	k8s.io/api v0.27.1
+	k8s.io/api v0.27.2
 	k8s.io/apiextensions-apiserver v0.27.0
-	k8s.io/apimachinery v0.27.1
+	k8s.io/apimachinery v0.27.2
 	k8s.io/apiserver v0.27.1
 	k8s.io/cli-runtime v0.27.1
-	k8s.io/client-go v0.27.1
+	k8s.io/client-go v0.27.2
 	k8s.io/klog/v2 v2.100.1
 	oras.land/oras-go v1.2.3
 	sigs.k8s.io/controller-runtime v0.14.6
@@ -149,6 +149,7 @@ require (
 	github.com/mattn/go-runewidth v0.0.14 // indirect
 	github.com/mattn/go-shellwords v1.0.12 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.4 // indirect
+	github.com/mesosphere/dkp-cli-runtime/core v0.7.1
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/mitchellh/go-testing-interface v1.14.1 // indirect
 	github.com/mitchellh/go-wordwrap v1.0.0 // indirect
@@ -208,7 +209,8 @@ require (
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	k8s.io/kube-openapi v0.0.0-20230327201221-f5883ff37f0c // indirect
+	k8s.io/kube-openapi v0.0.0-20230501164219-8b0f38b5fd1f // indirect
+	k8s.io/metrics v0.27.2
 	k8s.io/utils v0.0.0-20230406110748-d93618cff8a2
 	periph.io/x/host/v3 v3.8.2
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect
