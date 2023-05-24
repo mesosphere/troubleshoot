@@ -48,9 +48,9 @@ func (c *CollectMetrics) Collect(progressChan chan<- interface{}) (CollectorResu
 		if err != nil {
 			return nil, errors.Wrap(err, "could not construct endpoint")
 		}
-		response, err := c.Client.CoreV1().RESTClient().Get().AbsPath(endpoint).DoRaw(context.Background())
+		response, err := c.Client.CoreV1().RESTClient().Get().AbsPath(endpoint).DoRaw(c.Context)
 		if err != nil {
-			return nil, errors.Wrap(err, fmt.Sprintf("could not query endpoint %s", endpoint))
+			return nil, errors.Wrapf(err, "could not query endpoint %s", endpoint)
 		}
 		metricsValues := custom_metrics.MetricValueList{}
 		json.Unmarshal(response, &metricsValues)
