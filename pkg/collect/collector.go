@@ -71,6 +71,8 @@ func GetCollector(collector *troubleshootv1beta2.Collect, bundlePath string, nam
 		return &CollectConfigMap{collector.ConfigMap, bundlePath, namespace, clientConfig, client, ctx, RBACErrors}, true
 	case collector.Logs != nil:
 		return &CollectLogs{collector.Logs, bundlePath, namespace, clientConfig, client, ctx, sinceTime, RBACErrors}, true
+	case collector.AllLogs != nil:
+		return &CollectAllLogs{collector.AllLogs, bundlePath, namespace, clientConfig, client, ctx, RBACErrors}, true
 	case collector.Run != nil:
 		return &CollectRun{collector.Run, bundlePath, namespace, clientConfig, client, ctx, RBACErrors}, true
 	case collector.RunPod != nil:
@@ -83,6 +85,8 @@ func GetCollector(collector *troubleshootv1beta2.Collect, bundlePath string, nam
 		return &CollectCopy{collector.Copy, bundlePath, namespace, clientConfig, client, ctx, RBACErrors}, true
 	case collector.CopyFromHost != nil:
 		return &CollectCopyFromHost{collector.CopyFromHost, bundlePath, namespace, clientConfig, client, ctx, RBACErrors}, true
+	case collector.ExecCopyFromHost != nil:
+		return &CollectExecCopyFromHost{collector.ExecCopyFromHost, bundlePath, namespace, clientConfig, client, ctx, RBACErrors}, true
 	case collector.HTTP != nil:
 		return &CollectHTTP{collector.HTTP, bundlePath, namespace, clientConfig, client, RBACErrors}, true
 	case collector.Postgres != nil:
@@ -133,6 +137,10 @@ func getCollectorName(c interface{}) string {
 		collector = "logs"
 		name = v.Collector.CollectorName
 		selector = strings.Join(v.Collector.Selector, ",")
+	case *CollectAllLogs:
+		collector = "all-logs"
+		name = v.Collector.CollectorName
+		selector = strings.Join(v.Collector.Selector, ",")
 	case *CollectRun:
 		collector = "run"
 		name = v.Collector.CollectorName
@@ -152,6 +160,9 @@ func getCollectorName(c interface{}) string {
 		selector = strings.Join(v.Collector.Selector, ",")
 	case *CollectCopyFromHost:
 		collector = "copy-from-host"
+		name = v.Collector.CollectorName
+	case *CollectExecCopyFromHost:
+		collector = "exec-copy-from-host"
 		name = v.Collector.CollectorName
 	case *CollectHTTP:
 		collector = "http"

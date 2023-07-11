@@ -25,6 +25,7 @@ import (
 )
 
 type SupportBundleCreateOpts struct {
+	NamePrefix                string
 	CollectorProgressCallback func(chan interface{}, string)
 	CollectWithoutPermissions bool
 	HttpClient                *http.Client
@@ -78,7 +79,7 @@ func CollectSupportBundleFromSpec(
 		basename = strings.TrimSuffix(overridePath, ".tar.gz")
 	} else {
 		// use default output path
-		basename = fmt.Sprintf("support-bundle-%s", time.Now().Format("2006-01-02T15_04_05"))
+		basename = fmt.Sprintf("%ssupport-bundle-%s", opts.NamePrefix, time.Now().Format("2006-01-02T15_04_05"))
 		if !opts.FromCLI {
 			basename = filepath.Join(os.TempDir(), basename)
 		}
